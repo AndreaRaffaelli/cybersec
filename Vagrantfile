@@ -70,8 +70,9 @@ Vagrant.configure("2") do |config|
   # Enable provisioning with a shell script. Additional provisioners such as
   # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
   # documentation for more information about their specific syntax and use.
-  # config.vm.provision "shell", inline: <<-SHELL
-  #   apt-get update
-  #   apt-get install -y apache2
-  # SHELL
+   config.vm.provision "shell", inline: <<-SHELL
+	 sudo apt update
+	 sudo apt install -y clang llvm libbpf-dev gcc make iproute2 linux-headers-$(uname -r) bpfcc-tools linux-headers-$(uname -r)
+	sudo apt install -y bpftool
+   SHELL
 end
