@@ -31,13 +31,14 @@ Vagrant.configure("2") do |config|
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
-  case RbConfig::CONFIG['host_os']
-    when /linux/ #Sync with NFS
-      config.vm.synced_folder "./data", "/vagrant_data", type: "nfs", nfs_udp: false, mount_options: ["rw"]
-      config.vm.network "private_network", ip: "192.168.56.2" # For NFS
-    when /cygwin|mswin|mingw|bccwin|wince|emx/
-      config.vm.synced_folder "./data", "/vagrant_data", mount_options: ["dmode=775", "fmode=664"], type: "rsync"
-    end
+  config.vm.synced_folder "./data", "/vagrant_data", mount_options: ["dmode=775", "fmode=664"], type: "rsync"
+  # case RbConfig::CONFIG['host_os']
+    # when /linux/ #Sync with NFS
+    #   config.vm.synced_folder "./data", "/vagrant_data", type: "nfs", nfs_udp: false, mount_options: ["rw"]
+    #   config.vm.network "private_network", ip: "192.168.56.2" # For NFS
+    # when /cygwin|mswin|mingw|bccwin|wince|emx/
+    #   config.vm.synced_folder "./data", "/vagrant_data", mount_options: ["dmode=775", "fmode=664"], type: "rsync"
+    # end
 
   # Enable provisioning with a shell script. Additional provisioners such as
   # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the

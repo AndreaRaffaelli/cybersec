@@ -1,6 +1,7 @@
-/ SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 /* Copyright (c) 2020 Facebook */
 #include <libbpf.h>
+#include <linux/bpf.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +11,7 @@
 #include <stddef.h>
 #include <arpa/inet.h>
 #include <bpf.h>
-
+#include <stdarg.h>
 #include "DoS_detection.skel.h"
 #include <linux/types.h>
 
@@ -58,6 +59,8 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
     __U32_TYPE tcp_packets = 0;
     //int ok_value=1;
     int ret;
+    int map_ip = 0;
+    int map_port = 0;
     char tcp[MAX_TYPE_LEN] = "tcp";
     char udp[MAX_TYPE_LEN] = "udp";
     
@@ -82,7 +85,7 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
             // Legge udp_packets
             if (strncmp(line, "udp_packets:", 12) == 0) {
                 udp_packets = atoi(line + 12);
-                ret = bpf_map__update_elem(map_config,udp,sizeof(udp),&udp_packets,sizeof(udp_packets),BPF_ANY);
+                ret = bpf_map_update_elem(map_config,udp,sizeof(udp),&udp_packets,sizeof(udp_packets),BPF_ANY);
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
                 fprintf(stderr, "Errore nell'aggiornamento dell'elemento nella mappa BPF: %s\n", strerror(errno));
@@ -92,7 +95,7 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
             // Legge tcp_packets
             else if (strncmp(line, "tcp_packets:", 12) == 0) {
                 tcp_packets = atoi(line + 12);
-                ret = bpf_map__update_elem(map_config,tcp,sizeof(tcp),&tcp_packets,sizeof(tcp_packets),BPF_ANY);
+                ret = bpf_map_update_elem(map_config,tcp,sizeof(tcp),&tcp_packets,sizeof(tcp_packets),BPF_ANY);
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
                 fprintf(stderr, "Errore nell'aggiornamento dell'elemento nella mappa BPF: %s\n", strerror(errno));
