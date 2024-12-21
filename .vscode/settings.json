@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "inet.h": "c",
-        "libbpf.h": "c"
+        "libbpf.h": "c",
+        "stdio.h": "c"
     }
 }

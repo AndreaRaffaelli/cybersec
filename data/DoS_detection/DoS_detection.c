@@ -112,9 +112,9 @@ int main(int argc, char **argv)
     int fd;
     struct bpf_xdp_attach_opts *xdp_opts=malloc(sizeof(struct bpf_xdp_attach_opts));
 	struct DoS_detection_bpf *skel;
-    struct bpf_map *map_config;
-    struct bpf_map *udp_map_packets;
-    struct bpf_map *tcp_map_packets;
+    struct bpf_map *map_config; // Qui ci sono le treshold
+    struct bpf_map *udp_map_packets; // Qui conto tutti i pacchetti arrivati
+    struct bpf_map *tcp_map_packets; // Qui conto tutti i pacchetti arrivati
 	int err;
     char tcp[MAX_TYPE_LEN] = "tcp";
     char udp[MAX_TYPE_LEN] = "udp";
@@ -143,7 +143,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
         goto cleanup;
     }
-    //popolo la mappa
+    //popolo la mappa // LEGGO LE TRESHOLDs
     if((populate_map("config.txt",map_config))!=0){
         fprintf(stderr, "Errore nel popolare la mappa \n");
         goto cleanup;
@@ -168,7 +168,9 @@ int main(int argc, char **argv)
 
     __U32_TYPE cleanup_int = 0;
     int ret;
-	while (!stop) {
+	//Ciclo attivo !!! Bocciato a sistemi operativi
+    
+    while (!stop) { // Ogni secondo faccio cleanup
         ret = bpf_map__update_elem(udp_map_packets,udp,sizeof(udp),&cleanup_int,sizeof(cleanup_int),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
@@ -184,9 +186,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, ".");
 		sleep(1);
 	}
-
-
-
+    
 cleanup:
     bpf_xdp_detach(INTERFACE, BPF_ANY,xdp_opts);  //forse bisogna specificarla nel file config      
 	DoS_detection_bpf__destroy(skel);

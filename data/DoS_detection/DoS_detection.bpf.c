@@ -48,9 +48,11 @@ int xdp_ingress(struct xdp_md *ctx) {
         int *value_tresh_tcp;
         int *value_tresh_udp;
 
-        value_tresh_tcp = bpf_map_lookup_elem(&CONFIG_MAP,&tcp);
-        value_tresh_udp = bpf_map_lookup_elem(&CONFIG_MAP,&udp);
+        value_tresh_tcp = bpf_map_lookup_elem(&CONFIG_MAP,&tcp); // Leggo le mappa in Userspace
+        value_tresh_udp = bpf_map_lookup_elem(&CONFIG_MAP,&udp); // Leggo le mappa in Userspace
         //prendi subito le tresh
+        
+        //Giri strani che devi fare per forza
         int *value_udp;
         int *value_tcp;
         __u32 updated_tcp;
@@ -68,11 +70,11 @@ int xdp_ingress(struct xdp_md *ctx) {
         if (eth->h_proto != bpf_htons(ETH_P_IP))
             return XDP_PASS;
 
-        struct iphdr *ip = data + nh_off;
+        struct iphdr *ip = data + nh_off; 
         if (ip + 1 > data_end)
             return XDP_DROP;
 
-        if (ip->protocol == IPPROTO_TCP) {
+        if (ip->protocol == IPPROTO_TCP) { // LEGGO il protocollo
             struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
             if (tcp + 1 > data_end)
                 return XDP_DROP;
@@ -84,9 +86,8 @@ int xdp_ingress(struct xdp_md *ctx) {
             __u16 src_port =bpf_ntohs(tcp->dest);
             
 
-            //DEBUG
-
-            bpf_printk("IP: %d\n", src_ip);
+            //DEBUG - stampa in log bpf
+            bpf_printk("IP: %d\n", src_ip); 
             bpf_printk("PORT: %u\n", src_port);
             
             // AGGIORNA NUMERO PACCHETTI NEL SECONDO
@@ -101,7 +102,7 @@ int xdp_ingress(struct xdp_md *ctx) {
             //CONTROLLA CHE SIANO SOTTO LA TRESH
             if(updated_tcp >= *value_tresh_tcp){
                 bpf_printk("droppo un pacchetto TCP\n");
-                return XDP_PASS;
+                return XDP_DROP; // Comando di drop
             } 
 
 
@@ -133,12 +134,12 @@ int xdp_ingress(struct xdp_md *ctx) {
             //CONTROLLA CHE SIANO SOTTO LA TRESH
             if(updated_udp >= *value_tresh_udp){
                 bpf_printk("droppo un pacchetto UDP\n");
-                return XDP_PASS;
+                return XDP_DROP;
             } 
         }
     }
     
-    return XDP_DROP;  //whitelist
+    return XDP_PASS;  //whitelist
 }
 
 char _license[] SEC("license") = "GPL";
