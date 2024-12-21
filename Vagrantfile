@@ -48,6 +48,6 @@ Vagrant.configure("2") do |config|
 	  sudo apt install -y clang llvm libbpf-dev gcc make iproute2 linux-headers-$(uname -r) bpfcc-tools linux-headers-$(uname -r)
 	  # sudo  apt install -y clang llvm libbpf-dev gcc make iproute2 linux-headers-
     sudo apt install -y bpftool
+    cd /vagrant_data/libbpf-bootstrap/libbpf/src && make && sudo make install
     SHELL
-
   end
