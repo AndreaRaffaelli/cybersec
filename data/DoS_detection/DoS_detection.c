@@ -82,6 +82,7 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
             // Legge udp_packets
             if (strncmp(line, "udp_packets:", 12) == 0) {
                 udp_packets = atoi(line + 12);
+                printf("TRESH_UDP: %u\n", udp_packets);
                 ret = bpf_map__update_elem(map_config,udp,sizeof(udp),&udp_packets,sizeof(udp_packets),BPF_ANY);
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
@@ -92,6 +93,7 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
             // Legge tcp_packets
             else if (strncmp(line, "tcp_packets:", 12) == 0) {
                 tcp_packets = atoi(line + 12);
+                printf( "TRESH_TCP: %u\n", tcp_packets);
                 ret = bpf_map__update_elem(map_config,tcp,sizeof(tcp),&tcp_packets,sizeof(tcp_packets),BPF_ANY);
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
@@ -166,7 +168,7 @@ int main(int argc, char **argv)
 
 	printf("Successfully started! pleas type ctrl+C for shutting down the module \n ");
 
-    __U32_TYPE cleanup_int = 0;
+    __U32_TYPE cleanup_int = 1;
     int ret;
 	//Ciclo attivo !!! Bocciato a sistemi operativi
     
