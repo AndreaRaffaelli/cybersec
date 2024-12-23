@@ -1,0 +1,13 @@
+# Testing Unit
+
+## Building:
+
+``` gcc -o udp_server udp_server.c```
+
+## Running:
+-  Lanciare ```./udp_server``` sulla VM. 
+-  Lanciare attacco DoS sulla Host: ```sudo hping3 --udp -p 8080 --flood 192.168.56.10```.
+-  Lanciare trasferimento leggittimo di dati: ```iperf3 -c 192.168.56.10 --port 8080 -u  -b 10M``` 
+## Checking:
+
+Trovare i logs stampati da ```bpf_printk()``` e verificare pacchetti siano stati droppati.

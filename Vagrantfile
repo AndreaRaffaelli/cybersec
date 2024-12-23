@@ -7,47 +7,21 @@ Vagrant.configure("2") do |config|
   
   config.vm.box_check_update = false
 
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine. In the example below,
-  # accessing "localhost:8080" will access port 80 on the guest machine.
-  # NOTE: This will enable public access to the opened port
-  # config.vm.network "forwarded_port", guest: 80, host: 8080
+  # Creare una rete privata con un IP specifico
+  config.vm.network "private_network", ip: "192.168.56.10"
 
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine and only allow access
-  # via 127.0.0.1 to disable public access
-  # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+  # Creare una rete pubblica, che generalmente corrisponde a una rete bridged.
+  # config.vm.network "public_network"
 
-  # Create a private network, which allows host-only access to the machine
-  # using a specific IP.
-  #config.vm.network "private_network", ip: "192.168.56.10"
-
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-  config.vm.network "public_network"
-
-  # Share an additional folder to the guest VM. The first argument is
-  # the path on the host to the actual folder. The second argument is
-  # the path on the guest to mount the folder. And the optional third
-  # argument is a set of non-required options.
+  # Condividere una cartella aggiuntiva con la VM guest.
   config.vm.synced_folder "./data", "/vagrant_data", mount_options: ["dmode=775", "fmode=664"], type: "rsync"
-  # case RbConfig::CONFIG['host_os']
-    # when /linux/ #Sync with NFS
-    #   config.vm.synced_folder "./data", "/vagrant_data", type: "nfs", nfs_udp: false, mount_options: ["rw"]
-    #   config.vm.network "private_network", ip: "192.168.56.2" # For NFS
-    # when /cygwin|mswin|mingw|bccwin|wince|emx/
-    #   config.vm.synced_folder "./data", "/vagrant_data", mount_options: ["dmode=775", "fmode=664"], type: "rsync"
-    # end
 
-  # Enable provisioning with a shell script. Additional provisioners such as
-  # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
-  # documentation for more information about their specific syntax and use.
+  # Abilitare il provisioning con uno script shell.
   config.vm.provision "shell", inline: <<-SHELL
-	  sudo apt update
-	  sudo apt install -y clang llvm libbpf-dev gcc make iproute2 linux-headers-$(uname -r) bpfcc-tools linux-headers-$(uname -r)
-	  # sudo  apt install -y clang llvm libbpf-dev gcc make iproute2 linux-headers-
+    sudo apt update
+    sudo apt install -y clang llvm libbpf-dev gcc make iproute2 linux-headers-$(uname -r) bpfcc-tools linux-headers-$(uname -r)
     sudo apt install -y bpftool
+    sudo apt install iperf3
     cd /vagrant_data/libbpf-bootstrap/libbpf/src && make && sudo make install
-    SHELL
-  end
+  SHELL
+end
