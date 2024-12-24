@@ -83,7 +83,7 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
             if (strncmp(line, "udp_packets:", 12) == 0) {
                 udp_packets = atoi(line + 12);
                 printf("TRESH_UDP: %u\n", udp_packets);
-                ret = bpf_map__update_elem(map_config,udp,sizeof(udp),&udp_packets,sizeof(udp_packets),BPF_ANY);
+                ret = bpf_map__update_elem(map_config,&udp,sizeof(udp),&udp_packets,sizeof(udp_packets),BPF_ANY);
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
                 fprintf(stderr, "Errore nell'aggiornamento dell'elemento nella mappa BPF: %s\n", strerror(errno));
@@ -94,7 +94,7 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
             else if (strncmp(line, "tcp_packets:", 12) == 0) {
                 tcp_packets = atoi(line + 12);
                 printf( "TRESH_TCP: %u\n", tcp_packets);
-                ret = bpf_map__update_elem(map_config,tcp,sizeof(tcp),&tcp_packets,sizeof(tcp_packets),BPF_ANY);
+                ret = bpf_map__update_elem(map_config,&tcp,sizeof(tcp),&tcp_packets,sizeof(tcp_packets),BPF_ANY);
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
                 fprintf(stderr, "Errore nell'aggiornamento dell'elemento nella mappa BPF: %s\n", strerror(errno));
@@ -173,13 +173,13 @@ int main(int argc, char **argv)
 	//Ciclo attivo !!! Bocciato a sistemi operativi
     
     while (!stop) { // Ogni secondo faccio cleanup
-        ret = bpf_map__update_elem(udp_map_packets,udp,sizeof(udp),&cleanup_int,sizeof(cleanup_int),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
+        ret = bpf_map__update_elem(udp_map_packets,&udp,sizeof(udp),&cleanup_int,sizeof(cleanup_int),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
                 fprintf(stderr, "Errore nel cleanup periodico della mappa: %s\n", strerror(errno));
                 goto cleanup;
                 }
-        ret = bpf_map__update_elem(tcp_map_packets,tcp,sizeof(tcp),&cleanup_int,sizeof(cleanup_int),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
+        ret = bpf_map__update_elem(tcp_map_packets,&tcp,sizeof(tcp),&cleanup_int,sizeof(cleanup_int),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
                 fprintf(stderr, "Errore nel cleanup periodico della mappa: %s\n", strerror(errno));

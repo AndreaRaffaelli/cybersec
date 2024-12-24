@@ -43,13 +43,13 @@ int xdp_ingress(struct xdp_md *ctx) {
 
     if (ctx->ingress_ifindex != 0) {
         
-        char udp[MAX_TYPE_LEN] = "udp";
-        char tcp[MAX_TYPE_LEN] = "tcp";
+        char udp_key[MAX_TYPE_LEN] = "udp";
+        char tcp_key[MAX_TYPE_LEN] = "tcp";
         int *value_tresh_tcp;
         int *value_tresh_udp;
 
-        value_tresh_tcp = bpf_map_lookup_elem(&CONFIG_MAP,&tcp); // Leggo le mappa in Userspace
-        value_tresh_udp = bpf_map_lookup_elem(&CONFIG_MAP,&udp); // Leggo le mappa in Userspace
+        value_tresh_tcp = bpf_map_lookup_elem(&CONFIG_MAP,&tcp_key); // Leggo le mappa in Userspace
+        value_tresh_udp = bpf_map_lookup_elem(&CONFIG_MAP,&udp_key); // Leggo le mappa in Userspace
         //prendi subito le tresh
         
         //Giri strani che devi fare per forza
@@ -91,18 +91,20 @@ int xdp_ingress(struct xdp_md *ctx) {
             bpf_printk("PORT: %u\n", src_port);
             
             // AGGIORNA NUMERO PACCHETTI NEL SECONDO
-            value_tcp = bpf_map_lookup_elem(&TCP_PACKETS_MAP,&tcp);
+            value_tcp = bpf_map_lookup_elem(&TCP_PACKETS_MAP,&tcp_key);
             //debug
             if(value_tcp){
             //bpf_printk("value  tcp: %u\n", *value_tcp);
             updated_tcp = *value_tcp + 1;
             bpf_printk("value  tcp updated: %u\n", updated_tcp);
-            int ret = bpf_map_update_elem(&TCP_PACKETS_MAP, &tcp, &updated_tcp, BPF_EXIST);
+            int ret = bpf_map_update_elem(&TCP_PACKETS_MAP, &tcp_key, &updated_tcp, BPF_EXIST);
             }
 
             //CONTROLLA CHE SIANO SOTTO LA TRESH
             if(value_tresh_tcp){
+            //bpf_printk("LA TRESH VALUE TCP è: %u\n", *value_tresh_tcp);
             if(updated_tcp >= *value_tresh_tcp){
+                bpf_printk("LA TRESH VALUE TCP è: %d\n", *value_tresh_tcp);
                 bpf_printk("droppo un pacchetto TCP\n");
                 return XDP_DROP; // Comando di drop
             }
@@ -127,18 +129,20 @@ int xdp_ingress(struct xdp_md *ctx) {
             
             
             // AGGIORNA NUMERO PACCHETTI NEL SECONDO
-            value_udp = bpf_map_lookup_elem(&UDP_PACKETS_MAP,&udp);
+            value_udp = bpf_map_lookup_elem(&UDP_PACKETS_MAP,&udp_key);
             //debug
             if(value_udp){
               //bpf_printk("value  udp: %u\n", *value_udp);
               updated_udp = *value_udp + 1;
               bpf_printk("value  udp updated: %u\n", updated_udp);
-              int ret = bpf_map_update_elem(&UDP_PACKETS_MAP, &udp, &updated_udp, BPF_EXIST);
+              int ret = bpf_map_update_elem(&UDP_PACKETS_MAP, &udp_key, &updated_udp, BPF_EXIST);
             }
 
             //CONTROLLA CHE SIANO SOTTO LA TRESH
             if(value_tresh_udp){
+            //bpf_printk("LA TRESH VALUE UDP è: %u\n", *value_tresh_udp);
             if(updated_udp >= *value_tresh_udp){
+                bpf_printk("LA TRESH VALUE UDP è: %d\n", *value_tresh_udp);
                 bpf_printk("droppo un pacchetto UDP\n");
                 return XDP_DROP;
             } 
@@ -146,7 +150,7 @@ int xdp_ingress(struct xdp_md *ctx) {
         }
     }
     
-    return XDP_PASS;  //whitelist
+    return XDP_PASS; 
 }
 
 char _license[] SEC("license") = "GPL";
