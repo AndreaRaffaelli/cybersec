@@ -18,6 +18,28 @@ int INTERFACE = 1;
 
 #define MAX_TYPE_LEN 4
 
+struct log_final{ //LOG PRODUZIONE CHE INDICA NUM OACCHETTO DROPPATI
+    
+    long num_tcp;
+    long num_udp;
+    long num_total; 
+    long num_dropped;
+};
+
+struct log_final log;
+
+struct log_final log = {0,0,0,0};
+
+
+struct log_entry {
+    int ip;
+    int port;
+    int proto_type; //0 tcp, 1 udp
+    int pass; //0 passed, 1 dropped
+    long num; //packet number in the window time
+};
+
+
 
 static volatile sig_atomic_t stop;
 
@@ -42,6 +64,32 @@ void bump_memlock_rlimit() {
         exit(-1);
     }
 }
+
+
+// Callback per gestire gli eventi ricevuti dalla ring buffer (PRODUCTION)
+int handle_event(void *ctx, void *data, size_t size) {
+    struct log_entry *event = (struct log_entry *)data;
+    if(event->proto_type == 0){ //tcp
+        log.num_tcp ++;
+    }else{
+        log.num_udp ++;
+    }
+    if(event->pass == 1){
+        log.num_dropped++;
+    }
+    log.num_total++;
+    return 1;
+}
+
+
+//DEBUG MODE
+/*int handle_event(void *ctx, void *data, size_t size) {
+    struct log_entry *event = (struct log_entry *)data;
+    fprintf(stdout, "IP: %d, PORT: %d, PROTO: %d (0 tcp, 1 udp), num: %lx, drop: %d (0 pass, 1 drop)", event->ip, event ->port, event->proto_type, event->num, event->pass);
+    return 1;
+}*/
+
+
 
 //popolare la mappa
 
@@ -109,6 +157,14 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
     
 }
 
+void printLog(){
+    fprintf(stdout, "DoS detector report: \n");
+    fprintf(stdout, "TOTAL PACKETS: %lx\n", log.num_total);
+    fprintf(stdout, "TCP: %lx\n", log.num_tcp);
+    fprintf(stdout, "UDP: %lx\n", log.num_udp);
+    fprintf(stdout, "DROPPED PACKETS: %lx\n", log.num_dropped);
+}
+
 int main(int argc, char **argv)
 {
     int fd;
@@ -117,7 +173,9 @@ int main(int argc, char **argv)
     struct bpf_map *map_config; // Qui ci sono le treshold
     struct bpf_map *udp_map_packets; // Qui conto tutti i pacchetti arrivati
     struct bpf_map *tcp_map_packets; // Qui conto tutti i pacchetti arrivati
-	int err;
+	int buffer_fd;
+    struct ring_buffer *rb = NULL;
+    int err;
     char tcp[MAX_TYPE_LEN] = "tcp";
     char udp[MAX_TYPE_LEN] = "udp";
 
@@ -145,6 +203,19 @@ int main(int argc, char **argv)
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
         goto cleanup;
     }
+    buffer_fd = bpf_map__fd(skel->maps.ringbuf);
+    if (buffer_fd < 0) {
+        fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
+        goto cleanup;
+    }
+
+      // Configura la ring buffer
+    rb = ring_buffer__new(buffer_fd, handle_event, NULL, NULL);
+    if (!rb) {
+        fprintf(stderr, "Failed to create ring buffer\n");
+        return 1;
+    }
+
     //popolo la mappa // LEGGO LE TRESHOLDs
     if((populate_map("config.txt",map_config))!=0){
         fprintf(stderr, "Errore nel popolare la mappa \n");
@@ -185,11 +256,19 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Errore nel cleanup periodico della mappa: %s\n", strerror(errno));
                 goto cleanup;
                 }
+
+        ret = ring_buffer__poll(rb, 0); //polling buffer
+        if (ret < 0) {
+            fprintf(stderr, "Polling error: %d\n", err);
+            break;
+        }
 		fprintf(stderr, ".");
 		sleep(1);
 	}
     
 cleanup:
+    printLog();
+    ring_buffer__free(rb);
     bpf_xdp_detach(INTERFACE, BPF_ANY,xdp_opts);  //forse bisogna specificarla nel file config      
 	DoS_detection_bpf__destroy(skel);
 	return -err;
