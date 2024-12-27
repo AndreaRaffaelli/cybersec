@@ -11,7 +11,9 @@
 
 
 #define MAX_ENTRIES 2
+#define MAX_IP_ENTRIES 1000
 #define MAX_ENTRIES_PACKETS 1
+#define MAX_CHAR_LEN 5
 #define MAX_TYPE_LEN 4
 
 //struct log
@@ -40,17 +42,24 @@ struct {
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, MAX_ENTRIES); 
-    __type(key, char[MAX_TYPE_LEN]);
+	__uint(max_entries, MAX_IP_ENTRIES); 
+    __type(key, __u32);
+	__type(value, __s64);
+} IP_NUM_MAP SEC(".maps") ;
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, MAX_IP_ENTRIES); 
+    __type(key, __u32);
 	__type(value, __u32);
-} UDP_PACKETS_MAP SEC(".maps") ;
+} IP_TIME_MAP SEC(".maps") ;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, MAX_ENTRIES); 
-    __type(key, char[MAX_TYPE_LEN]);
+    __type(key, char[MAX_CHAR_LEN]);
 	__type(value, __u32);
-} TCP_PACKETS_MAP SEC(".maps") ;
+} TIME_MAP SEC(".maps") ;
 
 SEC("xdp")
 int xdp_ingress(struct xdp_md *ctx) {
@@ -59,6 +68,7 @@ int xdp_ingress(struct xdp_md *ctx) {
         
         char udp_key[MAX_TYPE_LEN] = "udp";
         char tcp_key[MAX_TYPE_LEN] = "tcp";
+        int flag_proto = 0; //0 == tcp, 1 ==udp
         int *value_tresh_tcp;
         int *value_tresh_udp;
 
@@ -66,24 +76,27 @@ int xdp_ingress(struct xdp_md *ctx) {
         value_tresh_udp = bpf_map_lookup_elem(&CONFIG_MAP,&udp_key); // Leggo le mappa in Userspace
         //prendi subito le tresh
         
-        //Giri strani che devi fare per forza
-        int *value_udp;
-        int *value_tcp;
-        __u32 updated_tcp;
-        __u32 updated_udp;
+        char time_key[MAX_CHAR_LEN] = "time";
+        __s64 *value;
+        __s64 updated_value;
+        __u32 *ip_time;
+        __u32 *time;
+        __s64 clean_value = 1;
         void *data_end = (void *)(long)ctx->data_end;
         void *data = (void *)(long)ctx->data;
         __u64 nh_off;
+        __u16 src_port;
         struct ethhdr *eth = data;
         nh_off = sizeof(*eth);
         struct log_entry *entry;
+        int ret;
         
           
         // Alloca spazio nella ring buffer
-        entry = bpf_ringbuf_reserve(&ringbuf, sizeof(struct log_entry), 0);
+        /*entry = bpf_ringbuf_reserve(&ringbuf, sizeof(struct log_entry), 0);
         if (!entry) {
             //ignoro il fallimento, buffer pieno perderò dati // Fallimento nella riserva
-        }
+        }*/
         
         
         if (data + nh_off > data_end)
@@ -100,94 +113,87 @@ int xdp_ingress(struct xdp_md *ctx) {
             struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
             if (tcp + 1 > data_end)
                 return XDP_DROP;
-            
+            src_port =bpf_ntohs(tcp->dest);
+        }  else if (ip->protocol == IPPROTO_UDP) {
+            struct udphdr *udp = (struct udphdr *)(ip + 1);
+            flag_proto = 1;
+            if (udp + 1 > data_end)
+                return XDP_DROP;
+            src_port =bpf_ntohs(udp->dest);
+        }
             // Indirizzo IP sorgente
             __u32 src_ip = ip->saddr;
             
-            // Porta destinazione TCP
-            __u16 src_port =bpf_ntohs(tcp->dest);
-            
-
-            //DEBUG - log nel ringbuf
+          /*DEBUG - log nel ringbuf
             entry->proto_type= 0;
-            
             entry -> ip = src_ip;
-            entry -> port = src_port;
+            entry -> port = src_port;*/
         
-            //bpf_printk("IP: %d\n", src_ip); 
-            //bpf_printk("PORT: %u\n", src_port);
+            bpf_printk("IP: %d\n", src_ip); 
+            bpf_printk("PORT: %u\n", src_port);
             
-            // AGGIORNA NUMERO PACCHETTI NEL SECONDO
-            value_tcp = bpf_map_lookup_elem(&TCP_PACKETS_MAP,&tcp_key);
+            //INIZIO CONTROLLI
+
+            /* se trova l'ip nella mappa controlla il time_ip sia uguale al time, se non lo è aggiorna sia time (al tempo del vero time)
+            sia numero pacchetto (a 1), se lo è aggiorna solo il numero
+            se non lo trova lo aggiorna aggiungendo ip alla mappa con num a 1 e time_ip uguale a time       
+            
+            */
+
+
+
+            value = bpf_map_lookup_elem(&IP_NUM_MAP,&src_ip);
+            
             //debug
-            if(value_tcp){
-            //bpf_printk("value  tcp: %u\n", *value_tcp);
-            updated_tcp = *value_tcp + 1;
-            entry ->num = updated_tcp;
-            //bpf_printk("value  tcp updated: %u\n", updated_tcp);
-            int ret = bpf_map_update_elem(&TCP_PACKETS_MAP, &tcp_key, &updated_tcp, BPF_EXIST);
+            
+            if(value){ //l'ip è stato trovato
+                bpf_printk("pacchetti segnati per l'IP: %u\n", *value);
+                ip_time = bpf_map_lookup_elem(&IP_TIME_MAP,&src_ip);
+                time = bpf_map_lookup_elem(&TIME_MAP,&time_key);
+                
+                if (ip_time && time && (*ip_time < *time)){ //TEMPO DIVERSO AGGIORNARE TUTTO
+                    bpf_printk("IP_TIME: %lld\n", *ip_time);
+                    bpf_printk("REAL_TIME: %u\n", *time);
+                    ret = bpf_map_update_elem(&IP_NUM_MAP, &src_ip, &clean_value, BPF_ANY);
+                    __u32 time_map = *time;
+                    ret = bpf_map_update_elem(&IP_TIME_MAP, &src_ip, &time_map, BPF_ANY);
+                }
+                if (ip_time && time && (*ip_time == *time)){ //TEMPO UGUALE AGGIORNA NUM
+                    bpf_printk("IP_TIME: %u\n", *ip_time);
+                    bpf_printk("REAL_TIME: %u\n", *time);
+                    updated_value = *value + 1;
+                    bpf_printk("UPDATED VALUE: %lld\n", updated_value);
+                    ret = bpf_map_update_elem(&IP_NUM_MAP, &src_ip, &updated_value, BPF_ANY);
+                    if(flag_proto == 0){
+                        if(value_tresh_tcp){
+                            //bpf_printk("LA TRESH VALUE TCP è: %u\n", *value_tresh_tcp);
+                            if(updated_value >= *value_tresh_tcp){
+                            //bpf_printk("LA TRESH VALUE TCP è: %d\n", *value_tresh_tcp);
+                                bpf_printk("droppo un pacchetto TCP\n");
+                                //entry ->pass = 1;
+                                return XDP_DROP; // Comando di drop
+                        }}
+                    }else{
+                        if(value_tresh_udp){
+                            //bpf_printk("LA TRESH VALUE TCP è: %u\n", *value_tresh_tcp);
+                            if(updated_value >= *value_tresh_udp){
+                            //bpf_printk("LA TRESH VALUE TCP è: %d\n", *value_tresh_tcp);
+                                bpf_printk("droppo un pacchetto UDP\n");
+                                //entry ->pass = 1;
+                                return XDP_DROP; // Comando di drop
+                        }}
+                    }
+                }
+            }else{ //IL RECORD NON C?é si CREA
+                    ret = bpf_map_update_elem(&IP_NUM_MAP, &src_ip, &clean_value, BPF_ANY);
+                     __u32 time_map = 1;
+                    ret = bpf_map_update_elem(&IP_TIME_MAP, &src_ip, &time_map, BPF_ANY);
+                    bpf_printk("RECORD ADDEDD\n");
             }
 
-            //CONTROLLA CHE SIANO SOTTO LA TRESH
-            if(value_tresh_tcp){
-            //bpf_printk("LA TRESH VALUE TCP è: %u\n", *value_tresh_tcp);
-            if(updated_tcp >= *value_tresh_tcp){
-                //bpf_printk("LA TRESH VALUE TCP è: %d\n", *value_tresh_tcp);
-                //bpf_printk("droppo un pacchetto TCP\n");
-                entry ->pass = 1;
-                return XDP_DROP; // Comando di drop
-            }else{
-                entry ->pass = 0;
-            }
-            } 
-
-
-        } else if (ip->protocol == IPPROTO_UDP) {
-            struct udphdr *udp = (struct udphdr *)(ip + 1);
-            if (udp + 1 > data_end)
-                return XDP_DROP;
             
-            // Indirizzo IP sorgente
-            __u32 src_ip = ip->saddr;  //potrebbero essere utili
-            
-            // Porta destinazione UDP
-            __u16 src_port = udp->dest; //potrebbero essere utili
-
-            //DEBUG
-
-            //bpf_printk("IP: %d\n", src_ip);
-            //bpf_printk("PORT: %u\n", src_port);
-            entry->proto_type= 1;
-            entry -> ip = src_ip;
-            entry -> port = src_port;
-            
-            
-            // AGGIORNA NUMERO PACCHETTI NEL SECONDO
-            value_udp = bpf_map_lookup_elem(&UDP_PACKETS_MAP,&udp_key);
-            //debug
-            if(value_udp){
-              //bpf_printk("value  udp: %u\n", *value_udp);
-              updated_udp = *value_udp + 1;
-              //bpf_printk("value  udp updated: %u\n", updated_udp);
-              entry ->pass = updated_udp;
-              int ret = bpf_map_update_elem(&UDP_PACKETS_MAP, &udp_key, &updated_udp, BPF_EXIST);
-            }
-
-            //CONTROLLA CHE SIANO SOTTO LA TRESH
-            if(value_tresh_udp){
-            //bpf_printk("LA TRESH VALUE UDP è: %u\n", *value_tresh_udp);
-            if(updated_udp >= *value_tresh_udp){
-                //bpf_printk("LA TRESH VALUE UDP è: %d\n", *value_tresh_udp);
-                //bpf_printk("droppo un pacchetto UDP\n");
-                entry ->pass = 1;
-                return XDP_DROP;
-            }else{
-                entry ->pass = 0;
-            } 
-          }
-        }
         // Sottometti l'entry al buffer
-        bpf_ringbuf_submit(entry, 0);
+        //bpf_ringbuf_submit(entry, 0);
     }
     
     return XDP_PASS; 

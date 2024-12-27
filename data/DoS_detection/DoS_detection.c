@@ -17,6 +17,7 @@
 int INTERFACE = 1;
 
 #define MAX_TYPE_LEN 4
+#define MAX_CHAR_LEN 5
 
 struct log_final{ //LOG PRODUZIONE CHE INDICA NUM OACCHETTO DROPPATI
     
@@ -171,13 +172,15 @@ int main(int argc, char **argv)
     struct bpf_xdp_attach_opts *xdp_opts=malloc(sizeof(struct bpf_xdp_attach_opts));
 	struct DoS_detection_bpf *skel;
     struct bpf_map *map_config; // Qui ci sono le treshold
-    struct bpf_map *udp_map_packets; // Qui conto tutti i pacchetti arrivati
-    struct bpf_map *tcp_map_packets; // Qui conto tutti i pacchetti arrivati
+    struct bpf_map *ip_num_map; // 
+    struct bpf_map *ip_time_map; // 
+    struct bpf_map *time_map; // 
 	int buffer_fd;
     struct ring_buffer *rb = NULL;
     int err;
     char tcp[MAX_TYPE_LEN] = "tcp";
     char udp[MAX_TYPE_LEN] = "udp";
+    char time_key[MAX_CHAR_LEN] = "time";
 
 	
 	/* Open load and verify BPF application */
@@ -193,13 +196,18 @@ int main(int argc, char **argv)
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
         goto cleanup;
     }
-    udp_map_packets = skel->maps.UDP_PACKETS_MAP;
-    if (udp_map_packets < 0) {
+    ip_num_map = skel->maps.IP_NUM_MAP;
+    if (ip_num_map < 0) {
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
         goto cleanup;
     }
-    tcp_map_packets = skel->maps.TCP_PACKETS_MAP;
-    if (tcp_map_packets < 0) {
+    ip_time_map = skel->maps.IP_TIME_MAP;
+    if (ip_time_map < 0) {
+        fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
+        goto cleanup;
+    }
+    time_map = skel->maps.TIME_MAP;
+    if (time_map < 0) {
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
         goto cleanup;
     }
@@ -241,27 +249,24 @@ int main(int argc, char **argv)
 
     __U32_TYPE cleanup_int = 1;
     int ret;
+    __u32 time = 1;
 	//Ciclo attivo !!! Bocciato a sistemi operativi
     
     while (!stop) { // Ogni secondo faccio cleanup
-        ret = bpf_map__update_elem(udp_map_packets,&udp,sizeof(udp),&cleanup_int,sizeof(cleanup_int),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
+        ret = bpf_map__update_elem(time_map,&time_key,sizeof(time_key),&time,sizeof(time),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
                 if (ret < 0) {
                 // Errore nell'aggiornamento dell'elemento
                 fprintf(stderr, "Errore nel cleanup periodico della mappa: %s\n", strerror(errno));
                 goto cleanup;
                 }
-        ret = bpf_map__update_elem(tcp_map_packets,&tcp,sizeof(tcp),&cleanup_int,sizeof(cleanup_int),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
-                if (ret < 0) {
-                // Errore nell'aggiornamento dell'elemento
-                fprintf(stderr, "Errore nel cleanup periodico della mappa: %s\n", strerror(errno));
-                goto cleanup;
-                }
+        
 
-        ret = ring_buffer__poll(rb, 0); //polling buffer
+        /*ret = ring_buffer__poll(rb, 0); //polling buffer
         if (ret < 0) {
             fprintf(stderr, "Polling error: %d\n", err);
             break;
-        }
+        }*/
+        time++; //aggiorno tempo
 		fprintf(stderr, ".");
 		sleep(1);
 	}
