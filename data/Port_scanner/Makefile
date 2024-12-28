@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+
 OUTPUT := .output
 CLANG ?= clang
 LIBBPF_SRC := $(abspath ../../libbpf/src)
@@ -9,6 +10,9 @@ BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
 LIBBLAZESYM_SRC := $(abspath ../../blazesym/)
 LIBBLAZESYM_INC := $(abspath $(LIBBLAZESYM_SRC)/capi/include)
 LIBBLAZESYM_OBJ := $(abspath $(OUTPUT)/libblazesym_c.a)
+IP_MAP_SRC := ./ip_map
+IP_MAP_INC := $(IP_MAP_SRC)
+IP_MAP_OBJ := $(OUTPUT)/ip_map.o
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/arm.*/arm/' \
 			 | sed 's/aarch64/arm64/' \
@@ -17,42 +21,15 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
 VMLINUX := ../../vmlinux.h/include/$(ARCH)/vmlinux.h
-# Use our own libbpf API headers and Linux UAPI headers distributed with
-# libbpf to avoid dependency on system-wide headers, which could be missing or
-# outdated
-INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC)
+
+# Aggiungi il percorso della libreria ip_map
+INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC) -I$(IP_MAP_INC)
 CFLAGS := -g -Wall
 CFLAGS += -I/usr/include/bpf
-ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
+ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS) $(IP_MAP_OBJ)
 
-# Aggiungi i tuoi file BPF e C all'elenco delle applicazioni
 APPS = minimal minimal_legacy minimal_ns bootstrap uprobe kprobe fentry \
        usdt sockfilter tc ksyscall task_iter lsm Port_scanner
-
-# # Compila il file BPF
-# $(OUTPUT)/DoS_detection.bpf.o: DoS_detection.bpf.c $(LIBBPF_OBJ) $(wildcard DoS_detection.h) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
-# 	$(call msg,BPF,$@)
-# 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
-# 		     $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) \
-# 		     -c $< -o $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
-# 	$(Q)$(BPFTOOL) gen object $@ $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
-
-# # Genera lo skeleton per il file BPF
-# $(OUTPUT)/DoS_detection.skel.h: $(OUTPUT)/DoS_detection.bpf.o | $(OUTPUT) $(BPFTOOL)
-# 	$(call msg,GEN-SKEL,$@)
-# 	$(Q)$(BPFTOOL) gen skeleton $< > $@
-
-# # Compila il file C
-# $(OUTPUT)/DoS_detection.o: DoS_detection.c $(wildcard DoS_detection.h) | $(OUTPUT)
-# 	$(call msg,CC,$@)
-# 	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
-
-# # Assicurati che l'applicazione venga costruita
-# DoS_detection: $(OUTPUT)/DoS_detection.o $(LIBBPF_OBJ) | $(OUTPUT)
-# 	$(call msg,BINARY,$@)
-# 	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
-
-
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
@@ -60,7 +37,6 @@ BZS_APPS :=
 else
 BZS_APPS := profile
 APPS += $(BZS_APPS)
-# Required by libblazesym
 ALL_LDFLAGS += -lrt -ldl -lpthread -lm
 endif
 
@@ -141,6 +117,11 @@ $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) 
 $(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
 	$(call msg,GEN-SKEL,$@)
 	$(Q)$(BPFTOOL) gen skeleton $< > $@
+
+# Build ip_map object
+$(IP_MAP_OBJ): $(IP_MAP_SRC)/ip_map.c $(IP_MAP_SRC)/ip_map.h | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(IP_MAP_SRC)/ip_map.c -o $@
 
 # Build user-space code
 $(patsubst %,$(OUTPUT)/%.o,$(APPS)): %.o: %.skel.h

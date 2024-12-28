@@ -21,6 +21,13 @@ struct event_t {
 };
 
 
+// Blacklist:
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(__u32));  // IP è un u32
+    __uint(max_entries, 1024); // Dimensione massima della blacklist
+} blacklist SEC(".maps");
+
 /* TODO:*/
 // - lookup blacklist
 
