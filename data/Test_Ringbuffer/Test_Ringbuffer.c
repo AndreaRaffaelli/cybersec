@@ -1,11 +1,25 @@
+#include <libbpf.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <bpf/libbpf.h>
-#include "xdp_prog.skel.h"
+#include <signal.h>
+#include <sys/resource.h>
+#include <stddef.h>
+#include <arpa/inet.h>
+#include <bpf.h>
 
-void handle_event(void *ctx, void *data, size_t len) {
+#include "Test_Ringbuffer.skel.h"
+#include <linux/types.h>
+
+struct packet_info {
+    __u32 ip;
+    __u16 port;
+    char protocol[4];
+};
+
+
+int handle_event(void *ctx, void *data, size_t len) {
     struct packet_info *event = data;
     char ip[16];
     snprintf(ip, sizeof(ip), "%d.%d.%d.%d",
@@ -13,7 +27,8 @@ void handle_event(void *ctx, void *data, size_t len) {
              (event->ip >> 8) & 0xFF,
              (event->ip >> 16) & 0xFF,
              (event->ip >> 24) & 0xFF);
-    printf("Packet: IP=%s, Port=%u, Protocol=%s\n", ip, event->port, event->protocol);
+    fprintf("Packet: IP=%s, Port=%u, Protocol=%s\n", ip, event->port, event->protocol);
+    return 0;
 }
 
 void handle_blacklist(void *ctx, void *data, size_t len) {
@@ -24,18 +39,13 @@ void handle_blacklist(void *ctx, void *data, size_t len) {
              (*blacklisted_ip >> 8) & 0xFF,
              (*blacklisted_ip >> 16) & 0xFF,
              (*blacklisted_ip >> 24) & 0xFF);
-    printf("Blacklisted IP: %s\n", ip);
+    fprintf("Blacklisted IP: %s\n", ip);
 }
 
 int main() {
-    struct xdp_prog *skel = xdp_prog__open_and_load();
+    struct Test_Ringbuffer_bpf *skel = Test_Ringbuffer_bpf__open_and_load();
     if (!skel) {
         fprintf(stderr, "Failed to open and load BPF program\n");
-        return 1;
-    }
-
-    if (xdp_prog__attach(skel) < 0) {
-        fprintf(stderr, "Failed to attach BPF program\n");
         return 1;
     }
 
@@ -52,6 +62,6 @@ int main() {
         ring_buffer__poll(blacklist_rb, -1);
     }
 
-    xdp_prog__destroy(skel);
+    Test_Ringbuffer__destroy(skel);
     return 0;
 }
