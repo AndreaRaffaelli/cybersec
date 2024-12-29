@@ -19,8 +19,8 @@
 //struct log
 
 struct log_entry {
-    int ip;
-    int port;
+    __u32 ip;
+    __u16 port;
     int proto_type; //0 tcp, 1 udp
     int pass; //0 passed, 1 dropped
     long num; //packet number in the window time
@@ -69,6 +69,8 @@ int xdp_ingress(struct xdp_md *ctx) {
         char udp_key[MAX_TYPE_LEN] = "udp";
         char tcp_key[MAX_TYPE_LEN] = "tcp";
         int flag_proto = 0; //0 == tcp, 1 ==udp
+        int flag_num= 0;
+        int flag_pass = 0;
         int *value_tresh_tcp;
         int *value_tresh_udp;
 
@@ -92,11 +94,7 @@ int xdp_ingress(struct xdp_md *ctx) {
         int ret;
         
           
-        // Alloca spazio nella ring buffer
-        /*entry = bpf_ringbuf_reserve(&ringbuf, sizeof(struct log_entry), 0);
-        if (!entry) {
-            //ignoro il fallimento, buffer pieno perderò dati // Fallimento nella riserva
-        }*/
+        
         
         
         if (data + nh_off > data_end)
@@ -124,13 +122,16 @@ int xdp_ingress(struct xdp_md *ctx) {
             // Indirizzo IP sorgente
             __u32 src_ip = ip->saddr;
             
-          /*DEBUG - log nel ringbuf
-            entry->proto_type= 0;
-            entry -> ip = src_ip;
-            entry -> port = src_port;*/
+          //DEBUG - log nel ringbuf
+            //Alloca spazio nella ring buffer
+        entry = bpf_ringbuf_reserve(&ringbuf, sizeof(struct log_entry), 0);
+        if (!entry) {
+            //ignoro il fallimento, buffer pieno perderò dati // Fallimento nella riserva
+            return XDP_DROP;
+        }
         
-            bpf_printk("IP: %d\n", src_ip); 
-            bpf_printk("PORT: %u\n", src_port);
+            //bpf_printk("IP: %d\n", src_ip); 
+            //bpf_printk("PORT: %u\n", src_port);
             
             //INIZIO CONTROLLI
 
@@ -147,53 +148,86 @@ int xdp_ingress(struct xdp_md *ctx) {
             //debug
             
             if(value){ //l'ip è stato trovato
-                bpf_printk("pacchetti segnati per l'IP: %u\n", *value);
+                //bpf_printk("pacchetti segnati per l'IP: %u\n", *value);
                 ip_time = bpf_map_lookup_elem(&IP_TIME_MAP,&src_ip);
                 time = bpf_map_lookup_elem(&TIME_MAP,&time_key);
                 
                 if (ip_time && time && (*ip_time < *time)){ //TEMPO DIVERSO AGGIORNARE TUTTO
-                    bpf_printk("IP_TIME: %lld\n", *ip_time);
-                    bpf_printk("REAL_TIME: %u\n", *time);
+                    //bpf_printk("IP_TIME: %lld\n", *ip_time);
+                    //bpf_printk("REAL_TIME: %u\n", *time);
                     ret = bpf_map_update_elem(&IP_NUM_MAP, &src_ip, &clean_value, BPF_ANY);
                     __u32 time_map = *time;
                     ret = bpf_map_update_elem(&IP_TIME_MAP, &src_ip, &time_map, BPF_ANY);
+                    flag_num=1;
+                    flag_pass=0;
                 }
                 if (ip_time && time && (*ip_time == *time)){ //TEMPO UGUALE AGGIORNA NUM
-                    bpf_printk("IP_TIME: %u\n", *ip_time);
-                    bpf_printk("REAL_TIME: %u\n", *time);
+                    //bpf_printk("IP_TIME: %u\n", *ip_time);
+                    //bpf_printk("REAL_TIME: %u\n", *time);
                     updated_value = *value + 1;
-                    bpf_printk("UPDATED VALUE: %lld\n", updated_value);
+                    //bpf_printk("UPDATED VALUE: %lld\n", updated_value);
                     ret = bpf_map_update_elem(&IP_NUM_MAP, &src_ip, &updated_value, BPF_ANY);
+                    flag_num = updated_value;
                     if(flag_proto == 0){
                         if(value_tresh_tcp){
                             //bpf_printk("LA TRESH VALUE TCP è: %u\n", *value_tresh_tcp);
                             if(updated_value >= *value_tresh_tcp){
                             //bpf_printk("LA TRESH VALUE TCP è: %d\n", *value_tresh_tcp);
-                                bpf_printk("droppo un pacchetto TCP\n");
-                                //entry ->pass = 1;
+                                //bpf_printk("droppo un pacchetto TCP\n");
+                                flag_pass = 1;
+                                if(entry){
+                                    entry -> ip = src_ip;
+                                    entry -> port = src_port;
+                                    entry ->proto_type = flag_proto;
+                                    entry ->pass=flag_pass;
+                                    entry->num=flag_num;
+                                   
+                                }
+                                // Sottometti l'entry al buffer
+                                bpf_ringbuf_submit(entry, 0);    //DEVE ESSERE DEALLOCATO PRIMA DELL?USCITA
                                 return XDP_DROP; // Comando di drop
-                        }}
+                        }else{flag_pass = 0;}}
                     }else{
                         if(value_tresh_udp){
                             //bpf_printk("LA TRESH VALUE TCP è: %u\n", *value_tresh_tcp);
                             if(updated_value >= *value_tresh_udp){
                             //bpf_printk("LA TRESH VALUE TCP è: %d\n", *value_tresh_tcp);
-                                bpf_printk("droppo un pacchetto UDP\n");
-                                //entry ->pass = 1;
+                                //bpf_printk("droppo un pacchetto UDP\n");
+                                flag_pass = 1;
+                                if(entry){
+                                    entry -> ip = src_ip;
+                                    entry -> port = src_port;
+                                    entry ->proto_type = flag_proto;
+                                    entry ->pass=flag_pass;
+                                    entry->num=flag_num;
+                                    
+                                }
+                                // Sottometti l'entry al buffer
+                                bpf_ringbuf_submit(entry, 0);    //DEVE ESSERE DEALLOCATO PRIMA DELL?USCITA
                                 return XDP_DROP; // Comando di drop
-                        }}
+                        }else{flag_pass = 0;}}
                     }
                 }
             }else{ //IL RECORD NON C?é si CREA
                     ret = bpf_map_update_elem(&IP_NUM_MAP, &src_ip, &clean_value, BPF_ANY);
                      __u32 time_map = 1;
                     ret = bpf_map_update_elem(&IP_TIME_MAP, &src_ip, &time_map, BPF_ANY);
-                    bpf_printk("RECORD ADDEDD\n");
+                    //bpf_printk("RECORD ADDEDD\n");
+                    flag_num = 1;
+                    flag_pass=0;
             }
 
             
+         if(entry){
+                entry -> ip = src_ip;
+                entry -> port = src_port;
+                entry ->proto_type = flag_proto;
+                entry ->pass=flag_pass;
+                entry->num=flag_num;
+               
+            }
         // Sottometti l'entry al buffer
-        //bpf_ringbuf_submit(entry, 0);
+        bpf_ringbuf_submit(entry, 0);
     }
     
     return XDP_PASS; 
