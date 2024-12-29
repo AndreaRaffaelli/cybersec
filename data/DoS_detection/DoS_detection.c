@@ -86,7 +86,7 @@ int handle_event(void *ctx, void *data, size_t size) {
 //DEBUG MODE
 /*int handle_event(void *ctx, void *data, size_t size) {
     struct log_entry *event = (struct log_entry *)data;
-    fprintf(stdout, "IP: %d, PORT: %d, PROTO: %d (0 tcp, 1 udp), num: %lx, drop: %d (0 pass, 1 drop)", event->ip, event ->port, event->proto_type, event->num, event->pass);
+    fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d (0 tcp, 1 udp), num: %lx, drop: %d (0 pass, 1 drop) \n", event->ip, event ->port, event->proto_type, event->num, event->pass);
     return 1;
 }*/
 
@@ -261,11 +261,11 @@ int main(int argc, char **argv)
                 }
         
 
-        /*ret = ring_buffer__poll(rb, 0); //polling buffer
+        ret = ring_buffer__poll(rb, 0); //polling buffer
         if (ret < 0) {
             fprintf(stderr, "Polling error: %d\n", err);
             break;
-        }*/
+        }
         time++; //aggiorno tempo
 		fprintf(stderr, ".");
 		sleep(1);
