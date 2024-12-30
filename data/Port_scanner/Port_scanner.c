@@ -36,6 +36,7 @@ struct event_t {
 
 static IPMap *ipMap_tcp;
 static IPMap *ipMap_udp;
+struct bpf_map *blacklist_map;
 
 struct packet_info {
     int ip;
@@ -43,11 +44,12 @@ struct packet_info {
     int protocol;
 };
 
-// static volatile struct blacklist {
-//     __uint(type, BPF_MAP_TYPE_HASH);
-//     __uint(key_size, sizeof(__u32));
-//     __uint(max_entries, 1024);
-// } blacklist;
+ static volatile struct blacklist {
+     __uint(type, BPF_MAP_TYPE_HASH);
+     __uint(key_size, sizeof(__u32));
+     __uint(value, sizeof(__u32));
+     __uint(max_entries, 1024);
+ } blacklist;
 
 
 // Funzione per aggiungere una porta a un dato IP
@@ -75,7 +77,7 @@ void add_port_to_ip(void *ctx, void *data, size_t len) {
                 if (portList->size == portList->capacity) {
                     fprintf(stderr, "Troppe porte visitate dall'IP: %s, aggiunto alla blacklist.\n", ip_str);
                     // TODO Aggiungi l'IP alla blacklist
-                    // bpf_map_update_elem(&blacklist, event->ip, BPF_ANY);
+                    // bpf_map_update_elem(&blacklist, 1 , event->ip, BPF_ANY);
                     return; // Interrompi l'elaborazione
                 }
 
@@ -104,7 +106,7 @@ void add_port_to_ip(void *ctx, void *data, size_t len) {
                 if (portList->size == portList->capacity) {
                     fprintf(stderr, "Troppe porte visitate dall'IP: %s, aggiunto alla blacklist.\n", ip_str);
                     // TODO Aggiungi l'IP alla blacklist
-                    // bpf_map_update_elem(&blacklist, event->ip, BPF_ANY);
+                    // bpf_map_update_elem(&blacklist, event->ip, 1,BPF_ANY);
                     return; // Interrompi l'elaborazione
                 }
 
@@ -121,16 +123,20 @@ int main(int argc, char **argv)
 {
     int fd;
     struct bpf_xdp_attach_opts *xdp_opts=malloc(sizeof(struct bpf_xdp_attach_opts));
-	struct Port_scanner_bpf *skel;
-    struct bpf_map *map_config; // Qui ci sono le treshold
-    struct bpf_map *udp_map_packets; // Qui conto tutti i pacchetti arrivati
-    struct bpf_map *tcp_map_packets; // Qui conto tutti i pacchetti arrivati
+	struct Port_scanner_bpf *skel; 
 	int err;
     char tcp[MAX_TYPE_LEN] = "tcp";
     char udp[MAX_TYPE_LEN] = "udp";
 
     int buffer_fd;
     struct ring_buffer *rb = NULL;
+
+    //Ottieni mappa blacklist
+    blacklist_map = skel->maps.blacklist;
+    if (blacklist_map < 0) {
+        fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF (blacklist).\n");
+        return 1;
+    }
 
     // Inizializza la mappa IP
     ipMap_tcp = init_ip_map();

@@ -18,6 +18,7 @@ int INTERFACE = 1;
 
 #define MAX_TYPE_LEN 4
 #define MAX_CHAR_LEN 5
+#define MAX_IP_LENGTH 16
 
 struct log_final{ //LOG PRODUZIONE CHE INDICA NUM OACCHETTO DROPPATI
     
@@ -68,8 +69,14 @@ void bump_memlock_rlimit() {
 
 
 // Callback per gestire gli eventi ricevuti dalla ring buffer (PRODUCTION)
-int handle_event(void *ctx, void *data, size_t size) {
+ int handle_event(void *ctx, void *data, size_t size) {
+    char ip_str[MAX_IP_LENGTH];
     struct log_entry *event = (struct log_entry *)data;
+    inet_ntop(AF_INET, &event->ip, ip_str, MAX_IP_LENGTH);
+
+    fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d (0 tcp, 1 udp), num: %lx, drop: %d (0 pass, 1 drop) \n", ip_str, event ->port, event->proto_type, event->num, event->pass);
+
+
     if(event->proto_type == 0){ //tcp
         log.num_tcp ++;
     }else{
@@ -80,15 +87,15 @@ int handle_event(void *ctx, void *data, size_t size) {
     }
     log.num_total++;
     return 1;
-}
+} 
 
 
 //DEBUG MODE
-/*int handle_event(void *ctx, void *data, size_t size) {
+/* int handle_event(void *ctx, void *data, size_t size) {
     struct log_entry *event = (struct log_entry *)data;
     fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d (0 tcp, 1 udp), num: %lx, drop: %d (0 pass, 1 drop) \n", event->ip, event ->port, event->proto_type, event->num, event->pass);
     return 1;
-}*/
+} */
 
 
 
