@@ -23,8 +23,6 @@ struct packet_info {
     int protocol;
 };
 
-
-
 // Blacklist:
 // struct {
 //     __uint(type, BPF_MAP_TYPE_HASH);
