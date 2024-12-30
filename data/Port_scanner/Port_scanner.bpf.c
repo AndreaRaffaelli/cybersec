@@ -26,11 +26,12 @@ struct packet_info {
 
 
 // Blacklist:
-// struct {
-//     __uint(type, BPF_MAP_TYPE_HASH);
-//     __uint(key_size, sizeof(__u32));  // IP è un u32
-//     __uint(max_entries, 1024); // Dimensione massima della blacklist
-// } blacklist SEC(".maps");
+struct {
+     __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024); // Dimensione massima della blacklist
+    __type(key, __u32); // IP è un u32
+    __type(value, int);
+} blacklist SEC(".maps");
 
 /* TODO:*/
 // - lookup blacklist
@@ -43,6 +44,7 @@ int xdp_ingress(struct xdp_md *ctx) {
     void *data_end = (void *)(long)ctx->data_end;
     void *data = (void *)(long)ctx->data;
     struct ethhdr *eth = data;
+    int *ip_value;
 
     if (data + sizeof(*eth) > data_end)
         return XDP_DROP;
@@ -59,11 +61,19 @@ int xdp_ingress(struct xdp_md *ctx) {
     // Riserva spazio nel ring buffer
     event = bpf_ringbuf_reserve(&ringbuf, sizeof(struct packet_info), 0);
     if (!event)
-        return XDP_PASS; // Buffer pieno o errore
+        return XDP_DROP; //IP NELLA BLACKLIST DROPPO
 
     // Popola l'IP e la Porta
-    event->ip = ip->saddr;
+    
+    __u32 src_ip = ip->saddr;
+    event->ip = src_ip;
     event->port = 0;  // Imposta un valore di default per la porta, sarà sovrascritto più avanti
+
+    ip_value = bpf_map_lookup_elem(&blacklist,&src_ip);
+    if(!ip_value){
+        bpf_ringbuf_discard(event, 0);
+        return XDP_DROP;
+    }
 
     if (ip->protocol == IPPROTO_TCP) { 
         struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
