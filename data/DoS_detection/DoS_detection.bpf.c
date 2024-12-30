@@ -130,8 +130,8 @@ int xdp_ingress(struct xdp_md *ctx) {
             return XDP_DROP;
         }
         
-            bpf_printk("IP: %d\n", src_ip); 
-            bpf_printk("PORT: %u\n", src_port);
+/*             bpf_printk("IP: %d\n", src_ip); 
+            bpf_printk("PORT: %u\n", src_port); */
             
             //INIZIO CONTROLLI
 
