@@ -18,8 +18,8 @@ struct {
 
 // Struttura dell'evento da scrivere nel ring buffer
 struct packet_info {
-    int ip;
-    int port;
+    __u32 ip;
+    __u16 port;
     int protocol;
 };
 
@@ -31,74 +31,73 @@ struct {
     __type(value, int);
 } blacklist SEC(".maps");
 
-/* TODO:*/
-// - lookup blacklist
 
 
-
+#define CHECK_BOUNDS(ptr, size) ((void *)(ptr) + (size) > data_end)
 
 SEC("xdp")
 int xdp_ingress(struct xdp_md *ctx) {
-    void *data_end = (void *)(long)ctx->data_end;
-    void *data = (void *)(long)ctx->data;
-    struct ethhdr *eth = data;
-    int *ip_value;
+    if (ctx->ingress_ifindex != 0) {
+        __u32 *ip_value;
+        int flag_proto = 0; //0 == tcp, 1 ==udp
+        void *data_end = (void *)(long)ctx->data_end;
+        void *data = (void *)(long)ctx->data;
+        struct ethhdr *eth = data;
+        __u64 nh_off = sizeof(*eth);
 
-    if (data + sizeof(*eth) > data_end)
-        return XDP_DROP;
+        if (data + nh_off > data_end)
+            return XDP_DROP;
 
-    if (eth->h_proto != bpf_htons(ETH_P_IP))
-        return XDP_PASS;
+        if (eth->h_proto != bpf_htons(ETH_P_IP))
+            return XDP_PASS;
 
-    struct iphdr *ip = data + sizeof(*eth); 
-    if ((void *)(ip + 1) > data_end)
-        return XDP_DROP;
+        struct iphdr *ip = data + nh_off;
+        if (CHECK_BOUNDS(ip, sizeof(*ip)))
+            return XDP_DROP;
 
-    struct packet_info *event = NULL;
+        struct packet_info *entry = bpf_ringbuf_reserve(&ringbuf, sizeof(struct packet_info), 0);
+        if (!entry)
+            return XDP_DROP;
 
-    // Riserva spazio nel ring buffer
-    event = bpf_ringbuf_reserve(&ringbuf, sizeof(struct packet_info), 0);
-    if (!event)
-        return XDP_DROP; //IP NELLA BLACKLIST DROPPO
+        __u16 src_port=0;
+        __u32 src_ip = ip->saddr;
+        entry->ip = src_ip;
 
-    // Popola l'IP e la Porta
-    
-    __u32 src_ip = ip->saddr;
-    event->ip = src_ip;
-    event->port = 0;  // Imposta un valore di default per la porta, sarà sovrascritto più avanti
-
-    ip_value = bpf_map_lookup_elem(&blacklist,&src_ip);
-    if(!ip_value){
-        bpf_ringbuf_discard(event, 0);
-        return XDP_DROP;
-    }
-
-    if (ip->protocol == IPPROTO_TCP) { 
-        struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
-        if ((void *)(tcp + 1) > data_end){
-            bpf_ringbuf_discard(event, 0);
+        ip_value = bpf_map_lookup_elem(&blacklist,&src_ip);
+        if(!ip_value){
+            bpf_ringbuf_discard(entry, 0);
             return XDP_DROP;
         }
-        event->port = bpf_ntohs(tcp->dest);
-        event->protocol = TCP;
-        // Stampa di debug
-        bpf_printk("TCP: IP=%d, Port=%u\n", event->ip, event->port);
-    } else if (ip->protocol == IPPROTO_UDP) {
-        struct udphdr *udp = (struct udphdr *)(ip + 1);
-        if ((void *)(udp + 1) > data_end){
-            bpf_ringbuf_discard(event, 0);
-            return XDP_DROP;
+
+        if (ip->protocol == IPPROTO_TCP) {
+            struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
+            if (CHECK_BOUNDS(tcp, sizeof(*tcp))){
+                bpf_ringbuf_discard(entry, 0);
+                return XDP_DROP;
+            }
+            src_port = bpf_ntohs(tcp->dest);
+            flag_proto = TCP;
+        } else if (ip->protocol == IPPROTO_UDP) {
+            struct udphdr *udp = (struct udphdr *)(ip + 1);
+            if (CHECK_BOUNDS(udp, sizeof(*udp))){
+                bpf_ringbuf_discard(entry, 0);
+                return XDP_DROP;
+            }
+            src_port = bpf_ntohs(udp->dest);
+            flag_proto = UDP;
         }
-        event->port = bpf_ntohs(udp->dest);
-        event->protocol = UDP;
 
-        // Stampa di debug
-        bpf_printk("UDP: IP=%d, Port=%u\n", event->ip, event->port);
+
+        bpf_printk("IP: %d\n", src_ip); 
+        bpf_printk("PORT: %u\n", src_port);
+        bpf_printk("PROTOCOLLO: %u\n", flag_proto); 
+
+        //entry->ip = src_ip;
+        entry->port = src_port;
+        entry->protocol = flag_proto;
+
+        bpf_ringbuf_submit(entry, 0);
     }
-
-    // Scrive l'evento nel ring buffer
-    bpf_ringbuf_submit(event, 0);
-    // bpf_ringbuf_discard(event, 0);
     return XDP_PASS;
 }
 

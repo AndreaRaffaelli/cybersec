@@ -56,8 +56,9 @@ struct packet_info {
 void add_port_to_ip(void *ctx, void *data, size_t len) {
     char ip_str[MAX_IP_LENGTH];
     struct packet_info *event = (struct packet_info *)data;
-    
-    FILE *log_file = fopen("log.txt", "a");
+    fprintf(stdout, "\n IP: %s, PORT: %d, PROTO: %d \n", event->ip, event->port, event->protocol);
+
+    /* FILE *log_file = fopen("log.txt", "a");
     if (log_file == NULL) {
         perror("Errore nell'aprire il file di log");
         return;
@@ -124,7 +125,7 @@ void add_port_to_ip(void *ctx, void *data, size_t len) {
         add_ip_entry(ipMap_udp, ip_str, event->port);
     }
     // Chiudi il file di log
-    fclose(log_file);   
+    fclose(log_file);    */
 }
 
 int main(int argc, char **argv)
