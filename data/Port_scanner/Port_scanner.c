@@ -36,6 +36,7 @@ struct event_t {
 
 static IPMap *ipMap_tcp;
 static IPMap *ipMap_udp;
+struct bpf_map *blacklist_map;
 
 struct packet_info {
     int ip;
@@ -121,8 +122,7 @@ int main(int argc, char **argv)
 {
     int fd;
     struct bpf_xdp_attach_opts *xdp_opts=malloc(sizeof(struct bpf_xdp_attach_opts));
-	struct Port_scanner_bpf *skel;
-    struct bpf_map *blacklist_map; // Qui ci sono le treshold
+	struct Port_scanner_bpf *skel; 
 	int err;
     char tcp[MAX_TYPE_LEN] = "tcp";
     char udp[MAX_TYPE_LEN] = "udp";

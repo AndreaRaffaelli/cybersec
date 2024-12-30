@@ -29,9 +29,11 @@ static void sig_int(int signo)
 
 
 int handle_event(void *ctx, void *data, size_t len) {
-    fprintf(stdout,"handle_event\n");
     struct packet_info *event = (struct packet_info *)data;
-    fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d \n", event->ip, event ->port, event->protocol);
+/*     printf("\nReceived packet from IP: %d.%d.%d.%d -",
+           event->ip & 0xff, (event->ip >> 8) & 0xff,
+           (event->ip >> 16) & 0xff, (event->ip >> 24) & 0xff); */
+    fprintf(stdout, " IP: %d, PORT: %d, PROTO: %d \n", event->ip, event ->port, event->protocol);
 
 /*     struct packet_info *event = (struct packet_info *)data;
     char ip[16];
@@ -106,7 +108,7 @@ int main() {
 
     // Legge gli eventi finché il segnale non è ricevuto
     while (!stop) {
-        int err = ring_buffer__poll(rb, -1);  // Timeout di 100 ms
+        err = ring_buffer__poll(rb, -1);  // Timeout di 100 ms
         //ring_buffer__poll(blacklist_rb, -1);
 
 /*         if (err < 0) {
