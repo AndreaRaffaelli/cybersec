@@ -17,7 +17,8 @@
 int INTERFACE = 1;
 
 #define MAX_TYPE_LEN 4
-
+#define UDP 1
+#define TCP 0
 
 static volatile sig_atomic_t stop;
 
@@ -33,55 +34,93 @@ struct event_t {
     char protocol[4];
 };
 
-static IPMap *ipMap;
+static IPMap *ipMap_tcp;
+static IPMap *ipMap_udp;
 
-static volatile struct blacklist {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(key_size, sizeof(__u32));
-    __uint(max_entries, 1024);
-} blacklist;
+struct packet_info {
+    int ip;
+    int port;
+    int protocol;
+};
+
+// static volatile struct blacklist {
+//     __uint(type, BPF_MAP_TYPE_HASH);
+//     __uint(key_size, sizeof(__u32));
+//     __uint(max_entries, 1024);
+// } blacklist;
 
 
 // Funzione per aggiungere una porta a un dato IP
-void add_port_to_ip(__u32 ip, __u16 port, const char *protocol) {
+void add_port_to_ip(void *ctx, void *data, size_t len) {
     char ip_str[MAX_IP_LENGTH];
-    inet_ntop(AF_INET, &ip, ip_str, MAX_IP_LENGTH);
+    struct packet_info *event = (struct packet_info *)data;
+    
+    // Conversione a STRING
+    inet_ntop(AF_INET, event->ip, ip_str, MAX_IP_LENGTH);
+    fprintf(stderr, "\n IP: %s, PORT: %d, PROTO: %d \n", ip_str, event->port, event->protocol);
+    
+    if( event->protocol == TCP){
+        for (size_t i = 0; i < ipMap_tcp->size; i++) { //Lookup
+            if (strcmp(ipMap_tcp->entries[i].ip, ip_str) == 0) {
+                PortList *portList = &ipMap_tcp->entries[i].portList;
 
-    // Cerca l'IP nella mappa
-    for (size_t i = 0; i < ipMap->size; i++) {
-        if (strcmp(ipMap->entries[i].ip, ip_str) == 0) {
-            PortList *portList = &ipMap->entries[i].portList;
-
-            // Verifica se la porta è già presente
-            for (size_t j = 0; j < portList->size; j++) {
-                if (portList->ports[j] == port) {
-                    return; // Porta già presente, nessuna duplicazione
+                // Verifica se la porta è già presente
+                for (size_t j = 0; j < portList->size; j++) {
+                    if (portList->ports[j] == event->port) {
+                        return; // Porta già presente, nessuna duplicazione
+                    }
                 }
-            }
 
-            // Verifica numero massimo di porte
-            if (portList->size == portList->capacity) {
-                fprintf(stderr, "Troppe porte visitate dall'IP: %s, aggiunto alla blacklist.\n", ip_str);
-                // Aggiungi l'IP alla blacklist
-                bpf_map_update_elem(&blacklist, &ip, BPF_ANY);
-                return; // Interrompi l'elaborazione
-            }
+                // Verifica numero massimo di porte
+                if (portList->size == portList->capacity) {
+                    fprintf(stderr, "Troppe porte visitate dall'IP: %s, aggiunto alla blacklist.\n", ip_str);
+                    // TODO Aggiungi l'IP alla blacklist
+                    // bpf_map_update_elem(&blacklist, event->ip, BPF_ANY);
+                    return; // Interrompi l'elaborazione
+                }
 
-            // Aggiungi la nuova porta
-            portList->ports[portList->size++] = port;
-            return;
+                // Aggiungi la nuova porta
+                portList->ports[portList->size++] = event->port;
+                return;
+            }
         }
+        // IP non trovato, aggiungi un nuovo IP nella mappa usando add_ip_entry
+        add_ip_entry(ipMap_tcp, ip_str, event->port);
     }
+    else { //UDP
+        for (size_t i = 0; i < ipMap_udp->size; i++) { //Lookup
+            if (strcmp(ipMap_udp->entries[i].ip, ip_str) == 0) {
+                PortList *portList = &ipMap_udp->entries[i].portList;
 
-    // IP non trovato, aggiungi un nuovo IP nella mappa usando add_ip_entry
-    add_ip_entry(ipMap, ip_str, port);
+                // Verifica se la porta è già presente
+                for (size_t j = 0; j < portList->size; j++) {
+                    if (portList->ports[j] == event->port) {
+                        return; // Porta già presente, nessuna duplicazione
+                    }
+                }
+
+                // Verifica numero massimo di porte
+                if (portList->size == portList->capacity) {
+                    fprintf(stderr, "Troppe porte visitate dall'IP: %s, aggiunto alla blacklist.\n", ip_str);
+                    // TODO Aggiungi l'IP alla blacklist
+                    // bpf_map_update_elem(&blacklist, event->ip, BPF_ANY);
+                    return; // Interrompi l'elaborazione
+                }
+
+                // Aggiungi la nuova porta
+                portList->ports[portList->size++] = event->port;
+                return;
+            }
+        }
+        add_ip_entry(ipMap_udp, ip_str, event->port);
+    }
 }
 
 int main(int argc, char **argv)
 {
     int fd;
     struct bpf_xdp_attach_opts *xdp_opts=malloc(sizeof(struct bpf_xdp_attach_opts));
-	struct DoS_detection_bpf *skel;
+	struct Port_scanner_bpf *skel;
     struct bpf_map *map_config; // Qui ci sono le treshold
     struct bpf_map *udp_map_packets; // Qui conto tutti i pacchetti arrivati
     struct bpf_map *tcp_map_packets; // Qui conto tutti i pacchetti arrivati
@@ -93,8 +132,9 @@ int main(int argc, char **argv)
     struct ring_buffer *rb = NULL;
 
     // Inizializza la mappa IP
-    ipMap = init_ip_map();
-	
+    ipMap_tcp = init_ip_map();
+	ipMap_udp = init_ip_map();
+
 	/* Open load and verify BPF application */
 	skel = Port_scanner_bpf__open_and_load();
 	if (!skel) {
@@ -106,7 +146,7 @@ int main(int argc, char **argv)
     buffer_fd = bpf_map__fd(skel->maps.ringbuf);
     if (buffer_fd < 0) {
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
-        goto cleanup;
+        stop = 1;
     }
 
       // Configura la ring buffer
@@ -123,32 +163,30 @@ int main(int argc, char **argv)
     err = bpf_xdp_attach(INTERFACE,fd,BPF_ANY,xdp_opts);
 	if (err) {
 		fprintf(stderr, "Failed to attach XDP: %d\n", err);
-		goto cleanup;
+		stop =1;
 	}
     xdp_opts->old_prog_fd=fd;
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
 		fprintf(stderr, "can't set signal handler\n");
-		goto cleanup;
+		stop = 1;
 	}
 
 	printf("Successfully started! pleas type ctrl+C for shutting down the module \n ");
 
-    // Leggi continuamente dal ring buffer e aggiorna la mappa
-     while (!stop) {
-       fprintf(stderr,".");
-       sleep(1);
+    while (!stop) {
+        err = ring_buffer__poll(rb, -1);  // -1 per attendere indefinitamente
+        fprintf(stderr, ".");
     }
-
 
 
     __U32_TYPE cleanup_int = 1;
     int ret;
-	//Ciclo attivo !!! Bocciato a sistemi operativi
-    
 
-cleanup:
-    destroy_ip_map(ipMap);
+    // cleanup:
+    fprintf(stderr, "\nExiting...\n");
+    destroy_ip_map(ipMap_tcp);
+    destroy_ip_map(ipMap_udp);
     bpf_xdp_detach(INTERFACE, BPF_ANY,xdp_opts);  //forse bisogna specificarla nel file config
     Port_scanner_bpf__destroy(skel);
 	return -err;
