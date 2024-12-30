@@ -106,8 +106,8 @@ int main() {
 
     // Legge gli eventi finché il segnale non è ricevuto
     while (!stop) {
-/*         int err = ring_buffer__poll(rb, -1);  // Timeout di 100 ms
- */        //ring_buffer__poll(blacklist_rb, -1);
+        int err = ring_buffer__poll(rb, -1);  // Timeout di 100 ms
+        //ring_buffer__poll(blacklist_rb, -1);
 
 /*         if (err < 0) {
             fprintf(stderr, "Errore durante il polling del ring buffer: %s\n", strerror(-err));
