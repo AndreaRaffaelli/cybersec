@@ -27,16 +27,10 @@ static void sig_int(int signo)
 	stop = 1;
 }
 
-// Ringbuffer:
-struct event_t {
-    __u32 ip;
-    __u16 port;
-    char protocol[4];
-};
 
 static IPMap *ipMap_tcp;
 static IPMap *ipMap_udp;
-struct bpf_map *blacklist_map;
+struct bpf_map *blacklist_map= NULL;
 
 struct packet_info {
     int ip;
@@ -44,19 +38,12 @@ struct packet_info {
     int protocol;
 };
 
- static volatile struct blacklist {
-     __uint(type, BPF_MAP_TYPE_HASH);
-     __uint(key_size, sizeof(__u32));
-     __uint(value, sizeof(__u32));
-     __uint(max_entries, 1024);
- } blacklist;
-
 
 // Funzione per aggiungere una porta a un dato IP
-void add_port_to_ip(void *ctx, void *data, size_t len) {
-    char ip_str[MAX_IP_LENGTH];
+int add_port_to_ip(void *ctx, void *data, size_t len) {
+//     char ip_str[MAX_IP_LENGTH];
     struct packet_info *event = (struct packet_info *)data;
-    fprintf(stdout, "\n IP: %s, PORT: %d, PROTO: %d \n", event->ip, event->port, event->protocol);
+    fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d \n", event->ip, event->port, event->protocol);
 
     /* FILE *log_file = fopen("log.txt", "a");
     if (log_file == NULL) {
@@ -126,6 +113,7 @@ void add_port_to_ip(void *ctx, void *data, size_t len) {
     }
     // Chiudi il file di log
     fclose(log_file);    */
+    return 1;
 }
 
 int main(int argc, char **argv)
@@ -137,16 +125,11 @@ int main(int argc, char **argv)
     int buffer_fd;
     struct ring_buffer *rb = NULL;
 
-    //Ottieni mappa blacklist
-    blacklist_map = skel->maps.blacklist;
-    if (blacklist_map < 0) {
-        fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF (blacklist).\n");
-        return 1;
-    }
+
 
     // Inizializza la mappa IP
     ipMap_tcp = init_ip_map();
-	ipMap_udp = init_ip_map();
+	ipMap_udp = init_ip_map(); 
 
 	/* Open load and verify BPF application */
 	skel = Port_scanner_bpf__open_and_load();
@@ -154,6 +137,13 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to open BPF skeleton\n");
 		return 1;
 	}
+
+    //Ottieni mappa blacklist
+    blacklist_map = skel->maps.blacklist;
+    if (blacklist_map < 0) {
+        fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF (blacklist).\n");
+        return 1;
+    }
 
     // Ottieni ring buffer
     buffer_fd = bpf_map__fd(skel->maps.ringbuf);
@@ -201,7 +191,7 @@ int main(int argc, char **argv)
     // cleanup:
     fprintf(stderr, "\nExiting...\n");
     destroy_ip_map(ipMap_tcp);
-    destroy_ip_map(ipMap_udp);
+    destroy_ip_map(ipMap_udp); 
     ring_buffer__free(rb);
     bpf_xdp_detach(INTERFACE, BPF_ANY,xdp_opts);  //forse bisogna specificarla nel file config
     Port_scanner_bpf__destroy(skel);

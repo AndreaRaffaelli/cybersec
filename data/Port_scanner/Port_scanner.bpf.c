@@ -45,26 +45,40 @@ int xdp_ingress(struct xdp_md *ctx) {
         struct ethhdr *eth = data;
         __u64 nh_off = sizeof(*eth);
 
-        if (data + nh_off > data_end)
+        if (data + nh_off > data_end){
+            bpf_printk("Esce qui: if (data + nh_off > data_end)");            
             return XDP_DROP;
+        }
 
-        if (eth->h_proto != bpf_htons(ETH_P_IP))
+        if (eth->h_proto != bpf_htons(ETH_P_IP)){
+            bpf_printk("Esce qui: if (eth->h_proto != bpf_htons(ETH_P_IP))");            
             return XDP_PASS;
+        }
 
         struct iphdr *ip = data + nh_off;
-        if (CHECK_BOUNDS(ip, sizeof(*ip)))
+        if (CHECK_BOUNDS(ip, sizeof(*ip))){
+            bpf_printk("Esce qui: if (CHECK_BOUNDS(ip, sizeof(*ip)))"); 
             return XDP_DROP;
+        }
 
         struct packet_info *entry = bpf_ringbuf_reserve(&ringbuf, sizeof(struct packet_info), 0);
-        if (!entry)
+        if (!entry){
+            bpf_printk("Esce qui: if (!entry)"); 
             return XDP_DROP;
+        }
 
         __u16 src_port=0;
         __u32 src_ip = ip->saddr;
         entry->ip = src_ip;
 
         ip_value = bpf_map_lookup_elem(&blacklist,&src_ip);
-        if(!ip_value){
+/*         if(!ip_value){
+            bpf_printk("Esce qui: if(!ip_value)"); 
+            bpf_ringbuf_discard(entry, 0);
+            return XDP_DROP;
+        } */
+        if(ip_value ){
+            bpf_printk("Ip in blacklist: droppato"); 
             bpf_ringbuf_discard(entry, 0);
             return XDP_DROP;
         }
@@ -72,6 +86,7 @@ int xdp_ingress(struct xdp_md *ctx) {
         if (ip->protocol == IPPROTO_TCP) {
             struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
             if (CHECK_BOUNDS(tcp, sizeof(*tcp))){
+                bpf_printk("Esce qui: if (CHECK_BOUNDS(tcp, sizeof(*tcp)))"); 
                 bpf_ringbuf_discard(entry, 0);
                 return XDP_DROP;
             }
@@ -80,6 +95,7 @@ int xdp_ingress(struct xdp_md *ctx) {
         } else if (ip->protocol == IPPROTO_UDP) {
             struct udphdr *udp = (struct udphdr *)(ip + 1);
             if (CHECK_BOUNDS(udp, sizeof(*udp))){
+                bpf_printk("Esce qui: if (CHECK_BOUNDS(udp, sizeof(*udp)))");
                 bpf_ringbuf_discard(entry, 0);
                 return XDP_DROP;
             }
