@@ -35,13 +35,13 @@ int add_ip_entry(IPMap *map, const char *ip, int port) {
         if (strcmp(map->entries[i].ip, ip) == 0) {
             // Verifica se la porta è già presente
             if (is_port_present(&map->entries[i].portList, port)) {
-                printf("La porta %d e' gia' presente per l'IP %s.\n", port, ip);
+                //printf("La porta %d e' gia' presente per l'IP %s.\n", port, ip);
                 return 1;
             }
 
             if (map->entries[i].portList.size >= INITIAL_PORTS_CAPACITY) {
                 // Se la capacità è piena, non aggiungiamo nuove porte -> ip verrà aggiunto a blacklist
-                fprintf(stderr, "Errore: la lista delle porte per l'IP %s e' piena\nRichiesta a %d droppata.\n\n", ip, port);
+                //fprintf(stderr, "Errore: la lista delle porte per l'IP %s e' piena\nRichiesta a %d droppata.\n\n", ip, port);
                 return 2;
             }
 
@@ -53,7 +53,7 @@ int add_ip_entry(IPMap *map, const char *ip, int port) {
     if (map->size >= map->capacity) {
         IPEntry *new_entries = realloc(map->entries, map->capacity * 2 * sizeof(IPEntry));
         if (!new_entries) {
-            fprintf(stderr, "Errore durante il realloc della mappa IP\n");
+            //fprintf(stderr, "Errore durante il realloc della mappa IP\n");
             return -1;
         }
         map->entries = new_entries;
@@ -81,7 +81,7 @@ void clear_ip_map(IPMap *map) {
 
 void print_ip_map(const IPMap *map) {
     if (!map || map->size == 0) {
-        printf("La mappa IP è vuota.\n");
+        //printf("La mappa IP è vuota.\n");
         return;
     }
 
@@ -89,7 +89,7 @@ void print_ip_map(const IPMap *map) {
         printf("IP: %s\n", map->entries[i].ip);
         printf("Porte: ");
         for (size_t j = 0; j < map->entries[i].portList.size; j++) {
-            printf("%d ", map->entries[i].portList.ports[j]);
+            printf("%d\t", map->entries[i].portList.ports[j]);
         }
         printf("\n");
     }

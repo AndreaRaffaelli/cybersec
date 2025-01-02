@@ -43,11 +43,12 @@ struct packet_info {
 int add_port_to_ip(void *ctx, void *data, size_t len) {
     int ret = 0;
     int ret2=0;
+    int value=1;
     char ip_str[MAX_IP_LENGTH];
     struct packet_info *event = (struct packet_info *)data;
     // Conversione a STRING
-    inet_ntop(AF_INET, event->ip, ip_str, MAX_IP_LENGTH);
-    fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d \n", ip_str, event->port, event->protocol);
+    inet_ntop(AF_INET, &event->ip, ip_str, sizeof(ip_str));
+    fprintf(stdout, "\nPacchetto ricevuto\t IP: %s, PORT: %d, PROTO: %d \n", ip_str, event->port, event->protocol);
 
 
     if( event->protocol == TCP){
@@ -58,7 +59,8 @@ int add_port_to_ip(void *ctx, void *data, size_t len) {
 
     if(ret==2){ //ip verrà aggiunto a blacklist
         fprintf(stdout,"Pacchetto aggiunto alla blacklist: troppe richieste\n");
-        ret2 = bpf_map_update_elem(blacklist_map, &event->ip, sizeof(event->ip),1, sizeof(int),BPF_ANY);
+        // Key della mappa passata come int, non come string
+        ret2 = bpf_map__update_elem(blacklist_map, &event->ip, sizeof(event->ip) ,&value, sizeof(value), BPF_ANY);
         if (ret2 < 0) {
             fprintf(stderr, "Errore nell'update della blacklist: %s\n", strerror(errno));
             return 2;
@@ -69,10 +71,13 @@ int add_port_to_ip(void *ctx, void *data, size_t len) {
     } else if(ret==0){
         fprintf(stdout,"Pacchetto aggiunto per la prima volta\n");
     }
-
+    fprintf(stdout,"\nPrint mappa");
     if( event->protocol == TCP){
+            fprintf(stdout," tcp:\n");
+
         print_ip_map(ipMap_tcp);
     }else{  //UDP
+        fprintf(stdout," udp:\n");
         print_ip_map(ipMap_udp);
     }
     fprintf(stdout, "\n\n");
@@ -90,37 +95,45 @@ int main(int argc, char **argv)
     struct ring_buffer *rb = NULL;
 
 
+    if (!xdp_opts) {
+        fprintf(stderr, "Errore nell'allocazione di memoria per xdp_opts\n");
+        goto cleanup;
+    }
 
     // Inizializza la mappa IP
     ipMap_tcp = init_ip_map();
 	ipMap_udp = init_ip_map(); 
+    if (!ipMap_tcp || !ipMap_udp) {
+        fprintf(stderr, "Errore durante l'inizializzazione della mappa IP\n");
+        goto cleanup;
+    }
 
 	/* Open load and verify BPF application */
 	skel = Port_scanner_bpf__open_and_load();
 	if (!skel) {
 		fprintf(stderr, "Failed to open BPF skeleton\n");
-		return 1;
+		goto cleanup;
 	}
 
     //Ottieni mappa blacklist
     blacklist_map = skel->maps.blacklist;
-    if (blacklist_map < 0) {
+    if (!blacklist_map) {
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF (blacklist).\n");
-        return 1;
+        goto cleanup;
     }
 
     // Ottieni ring buffer
     buffer_fd = bpf_map__fd(skel->maps.ringbuf);
     if (buffer_fd < 0) {
         fprintf(stderr, "Errore nell'ottenere il file descriptor della mappa BPF.\n");
-        return 1;
+        goto cleanup;
     }
 
       // Configura la ring buffer
     rb = ring_buffer__new(buffer_fd, add_port_to_ip, NULL, NULL);
     if (!rb) {
         fprintf(stderr, "Failed to create ring buffer\n");
-        return 1;
+        goto cleanup;
     }
 
     
@@ -130,35 +143,37 @@ int main(int argc, char **argv)
     err = bpf_xdp_attach(INTERFACE,fd,BPF_ANY,xdp_opts);
 	if (err) {
 		fprintf(stderr, "Failed to attach XDP: %d\n", err);
-		return 1;
+		goto cleanup;
 	}
     xdp_opts->old_prog_fd=fd;
+    
 
     if (signal(SIGINT, sig_int) == SIG_ERR) {
 		fprintf(stderr, "can't set signal handler\n");
-		return 1;
+		goto cleanup;
 	}
 
 	printf("Successfully started! pleas type ctrl+C for shutting down the module \n ");
 
     while (!stop) {
+        fprintf(stderr, "------------------------------------------------\n");
         err = ring_buffer__poll(rb, -1);  // -1 per attendere indefinitamente
         if (err < 0) {
             fprintf(stderr, "Errore durante il polling del ring buffer: %s\n", strerror(-err));
-            break;
+            goto cleanup;
         } 
-        fprintf(stderr, ".");
+        
         sleep(1);
     }
 
-
-    // cleanup:
-    fprintf(stderr, "\nExiting...\n");
+    
+cleanup:
+    fprintf(stderr, "\nCleanup...\n");
     destroy_ip_map(ipMap_tcp);
     destroy_ip_map(ipMap_udp); 
     ring_buffer__free(rb);
     bpf_xdp_detach(INTERFACE, BPF_ANY,xdp_opts);  //forse bisogna specificarla nel file config
     Port_scanner_bpf__destroy(skel);
-	return -err;
+	return 0;
 
 }

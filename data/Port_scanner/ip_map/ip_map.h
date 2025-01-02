@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #define MAX_IP_LENGTH 16          // Lunghezza massima di un indirizzo IP (xxx.xxx.xxx.xxx)
-#define INITIAL_PORTS_CAPACITY 4  // Capacità massima delle porte per ciascun IP
+#define INITIAL_PORTS_CAPACITY 2  // Capacità massima delle porte per ciascun IP
 
 // Struttura per la lista di porte con capacità fissa
 typedef struct {
