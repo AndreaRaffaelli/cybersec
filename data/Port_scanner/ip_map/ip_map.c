@@ -7,7 +7,7 @@
 IPMap* init_ip_map() {
     IPMap *map = malloc(sizeof(IPMap));
     map->size = 0;
-    map->capacity = 10; // Capacità iniziale
+    map->capacity = 10; // Capacità iniziale per la mappa IP
     map->entries = malloc(map->capacity * sizeof(IPEntry));
     return map;
 }
@@ -15,28 +15,38 @@ IPMap* init_ip_map() {
 // Funzione per distruggere la mappa
 void destroy_ip_map(IPMap *map) {
     if (map) {
-        for (size_t i = 0; i < map->size; i++) {
-            free(map->entries[i].portList.ports);
-        }
-        free(map->entries);
-        free(map);
+        free(map->entries); // La memoria per le voci IP è allocata dinamicamente
+        free(map);          // La memoria per la mappa è allocata dinamicamente
     }
 }
 
-void add_ip_entry(IPMap *map, const char *ip, int port) {
+// Funzione per verificare se la porta è già presente nella lista
+int is_port_present(const PortList *portList, int port) {
+    for (size_t i = 0; i < portList->size; i++) {
+        if (portList->ports[i] == port) {
+            return 1; // La porta è già presente
+        }
+    }
+    return 0; // La porta non è presente
+}
+
+int add_ip_entry(IPMap *map, const char *ip, int port) {
     for (size_t i = 0; i < map->size; i++) {
         if (strcmp(map->entries[i].ip, ip) == 0) {
-            if (map->entries[i].portList.size >= map->entries[i].portList.capacity) {
-                int *new_ports = realloc(map->entries[i].portList.ports, map->entries[i].portList.capacity * 2 * sizeof(int));
-                if (!new_ports) {
-                    fprintf(stderr, "Errore durante il realloc della lista di porte per IP %s\n", ip);
-                    return;
-                }
-                map->entries[i].portList.ports = new_ports;
-                map->entries[i].portList.capacity *= 2;
+            // Verifica se la porta è già presente
+            if (is_port_present(&map->entries[i].portList, port)) {
+                printf("La porta %d e' gia' presente per l'IP %s.\n", port, ip);
+                return 1;
             }
+
+            if (map->entries[i].portList.size >= INITIAL_PORTS_CAPACITY) {
+                // Se la capacità è piena, non aggiungiamo nuove porte -> ip verrà aggiunto a blacklist
+                fprintf(stderr, "Errore: la lista delle porte per l'IP %s e' piena\nRichiesta a %d droppata.\n\n", ip, port);
+                return 2;
+            }
+
             map->entries[i].portList.ports[map->entries[i].portList.size++] = port;
-            return;
+            return 0;
         }
     }
 
@@ -44,7 +54,7 @@ void add_ip_entry(IPMap *map, const char *ip, int port) {
         IPEntry *new_entries = realloc(map->entries, map->capacity * 2 * sizeof(IPEntry));
         if (!new_entries) {
             fprintf(stderr, "Errore durante il realloc della mappa IP\n");
-            return;
+            return -1;
         }
         map->entries = new_entries;
         map->capacity *= 2;
@@ -53,15 +63,13 @@ void add_ip_entry(IPMap *map, const char *ip, int port) {
     strncpy(map->entries[map->size].ip, ip, MAX_IP_LENGTH - 1);
     map->entries[map->size].ip[MAX_IP_LENGTH - 1] = '\0';
 
+    // Inizializzazione della lista delle porte
     map->entries[map->size].portList.size = 0;
-    map->entries[map->size].portList.capacity = INITIAL_PORTS_CAPACITY;
-    map->entries[map->size].portList.ports = malloc(map->entries[map->size].portList.capacity * sizeof(int));
-    if (!map->entries[map->size].portList.ports) {
-        fprintf(stderr, "Errore di allocazione memoria per le porte dell'IP %s\n", ip);
-        return;
-    }
+
+    // Aggiungiamo la porta solo se c'è spazio
     map->entries[map->size].portList.ports[map->entries[map->size].portList.size++] = port;
     map->size++;
+    return 0;
 }
 
 // Funzione per pulire la mappa
@@ -71,4 +79,18 @@ void clear_ip_map(IPMap *map) {
     }
 }
 
-// Funzione per pulire
+void print_ip_map(const IPMap *map) {
+    if (!map || map->size == 0) {
+        printf("La mappa IP è vuota.\n");
+        return;
+    }
+
+    for (size_t i = 0; i < map->size; i++) {
+        printf("IP: %s\n", map->entries[i].ip);
+        printf("Porte: ");
+        for (size_t j = 0; j < map->entries[i].portList.size; j++) {
+            printf("%d ", map->entries[i].portList.ports[j]);
+        }
+        printf("\n");
+    }
+}

@@ -41,79 +41,43 @@ struct packet_info {
 
 // Funzione per aggiungere una porta a un dato IP
 int add_port_to_ip(void *ctx, void *data, size_t len) {
-//     char ip_str[MAX_IP_LENGTH];
+    int ret = 0;
+    int ret2=0;
+    char ip_str[MAX_IP_LENGTH];
     struct packet_info *event = (struct packet_info *)data;
-    fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d \n", event->ip, event->port, event->protocol);
-
-    /* FILE *log_file = fopen("log.txt", "a");
-    if (log_file == NULL) {
-        perror("Errore nell'aprire il file di log");
-        return;
-    }
-
     // Conversione a STRING
     inet_ntop(AF_INET, event->ip, ip_str, MAX_IP_LENGTH);
-    fprintf(log_file, "\n IP: %s, PORT: %d, PROTO: %d \n", ip_str, event->port, event->protocol);
-    fflush(log_file);
+    fprintf(stdout, "\n IP: %d, PORT: %d, PROTO: %d \n", ip_str, event->port, event->protocol);
+
+
     if( event->protocol == TCP){
-        for (size_t i = 0; i < ipMap_tcp->size; i++) { //Lookup
-            if (strcmp(ipMap_tcp->entries[i].ip, ip_str) == 0) {
-                PortList *portList = &ipMap_tcp->entries[i].portList;
+        ret= add_ip_entry(ipMap_tcp, ip_str, event->port);
+    }else{  //UDP
+        ret= add_ip_entry(ipMap_udp, ip_str, event->port);
+    }
 
-                // Verifica se la porta è già presente
-                for (size_t j = 0; j < portList->size; j++) {
-                    if (portList->ports[j] == event->port) {
-                        return; // Porta già presente, nessuna duplicazione
-                    }
-                }
-
-                // Verifica numero massimo di porte
-                if (portList->size == portList->capacity) {
-                    fprintf(log_file, "Troppe porte visitate dall'IP: %s, aggiunto alla blacklist.\n", ip_str);
-                    // TODO Aggiungi l'IP alla blacklist
-                    // bpf_map_update_elem(&blacklist, 1 , event->ip, BPF_ANY);
-                    return; // Interrompi l'elaborazione
-                }
-
-                // Aggiungi la nuova porta
-                portList->ports[portList->size++] = event->port;
-                return;
-            }
+    if(ret==2){ //ip verrà aggiunto a blacklist
+        fprintf(stdout,"Pacchetto aggiunto alla blacklist: troppe richieste\n");
+        ret2 = bpf_map_update_elem(blacklist_map, &event->ip, sizeof(event->ip),1, sizeof(int),BPF_ANY);
+        if (ret2 < 0) {
+            fprintf(stderr, "Errore nell'update della blacklist: %s\n", strerror(errno));
+            return 2;
         }
-        
-        // IP non trovato, aggiungi un nuovo IP nella mappa usando add_ip_entry
-        add_ip_entry(ipMap_tcp, ip_str, event->port);
+    } else if(ret==1){  //porta già presente
+        fprintf(stdout,"Porta gia' richiesta in precedenza\n");  
+        return 1;
+    } else if(ret==0){
+        fprintf(stdout,"Pacchetto aggiunto per la prima volta\n");
     }
-    else { //UDP
-        for (size_t i = 0; i < ipMap_udp->size; i++) { //Lookup
-            if (strcmp(ipMap_udp->entries[i].ip, ip_str) == 0) {
-                PortList *portList = &ipMap_udp->entries[i].portList;
 
-                // Verifica se la porta è già presente
-                for (size_t j = 0; j < portList->size; j++) {
-                    if (portList->ports[j] == event->port) {
-                        return; // Porta già presente, nessuna duplicazione
-                    }
-                }
-
-                // Verifica numero massimo di porte
-                if (portList->size == portList->capacity) {
-                    fprintf(log_file, "Troppe porte visitate dall'IP: %s, aggiunto alla blacklist.\n", ip_str);
-                    // TODO Aggiungi l'IP alla blacklist
-                    // bpf_map_update_elem(&blacklist, event->ip, 1,BPF_ANY);
-                    return; // Interrompi l'elaborazione
-                }
-
-                // Aggiungi la nuova porta
-                portList->ports[portList->size++] = event->port;
-                return;
-            }
-        } 
-        add_ip_entry(ipMap_udp, ip_str, event->port);
+    if( event->protocol == TCP){
+        print_ip_map(ipMap_tcp);
+    }else{  //UDP
+        print_ip_map(ipMap_udp);
     }
-    // Chiudi il file di log
-    fclose(log_file);    */
-    return 1;
+    fprintf(stdout, "\n\n");
+   
+    return 0;
 }
 
 int main(int argc, char **argv)
