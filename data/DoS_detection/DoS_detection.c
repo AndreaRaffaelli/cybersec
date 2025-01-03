@@ -14,7 +14,7 @@
 #include "DoS_detection.skel.h"
 #include <linux/types.h>
 
-int INTERFACE = 1;
+int INTERFACE = 3;
 
 #define MAX_TYPE_LEN 4
 #define MAX_CHAR_LEN 5
@@ -162,10 +162,10 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
 
 void printLog(){
     fprintf(stdout, "DoS detector report: \n");
-    fprintf(stdout, "TOTAL PACKETS: %lx\n", log.num_total);
-    fprintf(stdout, "TCP: %lx\n", log.num_tcp);
-    fprintf(stdout, "UDP: %lx\n", log.num_udp);
-    fprintf(stdout, "DROPPED PACKETS: %lx\n", log.num_dropped);
+    fprintf(stdout, "TOTAL PACKETS: %ld\n", log.num_total);
+    fprintf(stdout, "TCP: %ld\n", log.num_tcp);
+    fprintf(stdout, "UDP: %ld\n", log.num_udp);
+    fprintf(stdout, "DROPPED PACKETS: %ld\n", log.num_dropped);
 }
 
 int main(int argc, char **argv)
@@ -252,7 +252,6 @@ int main(int argc, char **argv)
     __U32_TYPE cleanup_int = 1;
     int ret;
     __u32 time = 1;
-	//Ciclo attivo !!! Bocciato a sistemi operativi
     
     while (!stop) { // Ogni secondo faccio cleanup
         ret = bpf_map__update_elem(time_map,&time_key,sizeof(time_key),&time,sizeof(time),BPF_ANY); //NEL KERNEL DEVE ESSERE BPF_EXIST
@@ -269,12 +268,12 @@ int main(int argc, char **argv)
             break;
         }
         time++; //aggiorno tempo
-		fprintf(stderr, ".");
-		sleep(1);
+		printLog();
+        sleep(1);
 	}
     
 cleanup:
-    printLog();
+    
     ring_buffer__free(rb);
     bpf_xdp_detach(INTERFACE, BPF_ANY,xdp_opts);  //forse bisogna specificarla nel file config      
 	DoS_detection_bpf__destroy(skel);

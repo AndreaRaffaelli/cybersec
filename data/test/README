@@ -11,3 +11,162 @@
 ## Checking:
 
 Trovare i logs stampati da ```bpf_printk()``` e verificare pacchetti siano stati droppati.
+
+
+## Port Scanner
+
+### Bandwith overhead:
+
+Is the ebpf portscanner able to detect the port scan without causing a significant bandwith overhead?
+
+#### Host:
+
+``` bash
+iperf3 --client 192.168.56.10 --port 5000 -t 10
+Connecting to host 192.168.56.10, port 5000
+[  5] local 192.168.56.1 port 52274 connected to 192.168.56.10 port 5000
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   441 MBytes  3.70 Gbits/sec  3183    180 KBytes       
+[  5]   1.00-2.00   sec   419 MBytes  3.52 Gbits/sec  2834    221 KBytes       
+[  5]   2.00-3.00   sec   427 MBytes  3.58 Gbits/sec  3547    185 KBytes       
+[  5]   3.00-4.00   sec   430 MBytes  3.61 Gbits/sec  2965    197 KBytes       
+[  5]   4.00-5.00   sec   420 MBytes  3.53 Gbits/sec  3213    216 KBytes       
+[  5]   5.00-6.00   sec   428 MBytes  3.59 Gbits/sec  3325    212 KBytes       
+[  5]   6.00-7.00   sec   417 MBytes  3.50 Gbits/sec  3435    218 KBytes       
+[  5]   7.00-8.00   sec   440 MBytes  3.69 Gbits/sec  3890    206 KBytes       
+[  5]   8.00-9.00   sec   430 MBytes  3.61 Gbits/sec  3043    153 KBytes       
+[  5]   9.00-10.00  sec   395 MBytes  3.32 Gbits/sec  2986    163 KBytes       
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  4.15 GBytes  3.56 Gbits/sec  32421             sender
+[  5]   0.00-10.04  sec  4.14 GBytes  3.55 Gbits/sec                  receiver
+```
+#### VM without BPF:
+
+``` bash
+Accepted connection from 192.168.56.1, port 52258
+[  5] local 192.168.56.10 port 5000 connected to 192.168.56.1 port 52274
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec   420 MBytes  3.53 Gbits/sec                  
+[  5]   1.00-2.00   sec   421 MBytes  3.53 Gbits/sec                  
+[  5]   2.00-3.00   sec   427 MBytes  3.58 Gbits/sec                  
+[  5]   3.00-4.00   sec   428 MBytes  3.59 Gbits/sec                  
+[  5]   4.00-5.00   sec   421 MBytes  3.53 Gbits/sec                  
+[  5]   5.00-6.00   sec   430 MBytes  3.60 Gbits/sec                  
+[  5]   6.00-7.00   sec   418 MBytes  3.50 Gbits/sec                  
+[  5]   7.00-8.00   sec   439 MBytes  3.69 Gbits/sec                  
+[  5]   8.00-9.00   sec   430 MBytes  3.61 Gbits/sec                  
+[  5]   9.00-10.00  sec   395 MBytes  3.31 Gbits/sec                  
+[  5]  10.00-10.04  sec  15.7 MBytes  3.18 Gbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.04  sec  4.14 GBytes  3.55 Gbits/sec                  receiver
+```
+
+#### Host (with BPF enabled on the other end):
+
+``` bash
+iperf3 --client 192.168.56.10 --port 5000 -t 10
+Connecting to host 192.168.56.10, port 5000
+[  5] local 192.168.56.1 port 54992 connected to 192.168.56.10 port 5000
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   129 MBytes  1.08 Gbits/sec  270    279 KBytes       
+[  5]   1.00-2.00   sec   108 MBytes   902 Mbits/sec   45    428 KBytes       
+[  5]   2.00-3.00   sec   119 MBytes  1.00 Gbits/sec   45    464 KBytes       
+[  5]   3.00-4.00   sec   134 MBytes  1.12 Gbits/sec  135    387 KBytes       
+[  5]   4.00-5.00   sec   124 MBytes  1.04 Gbits/sec   90    315 KBytes       
+[  5]   5.00-6.00   sec   116 MBytes   977 Mbits/sec   90    448 KBytes       
+[  5]   6.00-7.00   sec   121 MBytes  1.02 Gbits/sec   90    359 KBytes       
+[  5]   7.00-8.00   sec   129 MBytes  1.08 Gbits/sec  135    286 KBytes       
+[  5]   8.00-9.00   sec   125 MBytes  1.05 Gbits/sec   90    280 KBytes       
+[  5]   9.00-10.00  sec   121 MBytes  1.01 Gbits/sec  172    303 KBytes       
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  1.20 GBytes  1.03 Gbits/sec  1162             sender
+[  5]   0.00-10.05  sec  1.19 GBytes  1.02 Gbits/sec                  receiver
+```
+
+#### VM with BPF:
+
+``` bash
+Accepted connection from 192.168.56.1, port 54982
+[  5] local 192.168.56.10 port 5000 connected to 192.168.56.1 port 54992
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec   120 MBytes  1.01 Gbits/sec                  
+[  5]   1.00-2.00   sec   108 MBytes   907 Mbits/sec                  
+[  5]   2.00-3.00   sec   119 MBytes   998 Mbits/sec                  
+[  5]   3.00-4.00   sec   134 MBytes  1.13 Gbits/sec                  
+[  5]   4.00-5.00   sec   124 MBytes  1.04 Gbits/sec                  
+[  5]   5.00-6.00   sec   116 MBytes   971 Mbits/sec                  
+[  5]   6.00-7.00   sec   122 MBytes  1.02 Gbits/sec                  
+[  5]   7.00-8.00   sec   128 MBytes  1.07 Gbits/sec                  
+[  5]   8.00-9.00   sec   126 MBytes  1.06 Gbits/sec                  
+[  5]   9.00-10.00  sec   120 MBytes  1.01 Gbits/sec                  
+[  5]  10.00-10.05  sec  5.67 MBytes  1.00 Gbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.05  sec  1.19 GBytes  1.02 Gbits/sec                  receiver
+```
+### Observations:
+
+Without imposing a given bandwith limit, the BPF program introduces a significant overhead in the bandwith, limiting it at around 1 Gbits/sec. This is due to the fact that the BPF program is scanning each incoming packet.
+Imposing a bandwith limit of 1G/s, let's study if the BPF introduces latency or jitter in the connection.
+
+#### With BPF:
+
+``` bash
+iperf3 -u -c 192.168.56.10 -p 5000 -t 10 -b 1G
+```
+
+``` bash
+Accepted connection from 192.168.56.1, port 34914
+[  5] local 192.168.56.10 port 5000 connected to 192.168.56.1 port 54865
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec  95.0 MBytes   797 Mbits/sec  0.015 ms  12985/81748 (16%)  
+[  5]   1.00-2.00   sec  55.3 MBytes   464 Mbits/sec  0.193 ms  46482/86528 (54%)  
+[  5]   2.00-3.00   sec  88.5 MBytes   743 Mbits/sec  0.006 ms  22487/86564 (26%)  
+[  5]   3.00-4.00   sec   106 MBytes   893 Mbits/sec  0.011 ms  9213/86262 (11%)  
+[  5]   4.00-5.00   sec  87.5 MBytes   734 Mbits/sec  0.004 ms  22995/86390 (27%)  
+[  5]   5.00-6.00   sec   119 MBytes   999 Mbits/sec  0.009 ms  69/86292 (0.08%)  
+[  5]   6.00-7.00   sec  90.1 MBytes   756 Mbits/sec  0.047 ms  20918/86191 (24%)  
+[  5]   7.00-8.00   sec  68.7 MBytes   576 Mbits/sec  0.007 ms  36739/86499 (42%)  
+[  5]   8.00-9.00   sec   108 MBytes   904 Mbits/sec  0.007 ms  8239/86268 (9.6%)  
+[  5]   9.00-10.00  sec  88.6 MBytes   743 Mbits/sec  0.012 ms  22227/86360 (26%)  
+[  5]  10.00-10.05  sec  5.71 MBytes  1.00 Gbits/sec  0.005 ms  3/4141 (0.072%)  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.05  sec   913 MBytes   762 Mbits/sec  0.005 ms  202357/863243 (23%)  receiver
+
+```
+#### Without BPF:
+```  bash
+iperf3 -c 192.168.56.10 -p 5000 -t 10 -b 1G
+```
+``` bash
+Accepted connection from 192.168.56.1, port 43176
+[  5] local 192.168.56.10 port 5000 connected to 192.168.56.1 port 36178
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec   114 MBytes   956 Mbits/sec  0.005 ms  0/82516 (0%)  
+[  5]   1.00-2.00   sec   119 MBytes  1000 Mbits/sec  0.010 ms  4/86311 (0.0046%)  
+[  5]   2.00-3.00   sec   119 MBytes   995 Mbits/sec  0.003 ms  449/86335 (0.52%)  
+[  5]   3.00-4.00   sec   118 MBytes   989 Mbits/sec  0.004 ms  948/86346 (1.1%)  
+[  5]   4.00-5.00   sec   119 MBytes  1000 Mbits/sec  0.005 ms  53/86344 (0.061%)  
+[  5]   5.00-6.00   sec   113 MBytes   949 Mbits/sec  0.006 ms  4471/86336 (5.2%)  
+[  5]   6.00-7.00   sec   113 MBytes   950 Mbits/sec  0.011 ms  4338/86310 (5%)  
+[  5]   7.00-8.00   sec   105 MBytes   877 Mbits/sec  0.015 ms  10588/86284 (12%)  
+[  5]   8.00-9.00   sec   116 MBytes   976 Mbits/sec  0.004 ms  2072/86333 (2.4%)  
+[  5]   9.00-10.00  sec   108 MBytes   904 Mbits/sec  0.024 ms  8207/86297 (9.5%)  
+[  5]  10.00-10.04  sec  3.73 MBytes   719 Mbits/sec  0.013 ms  1075/3778 (28%)  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.04  sec  1.12 GBytes   958 Mbits/sec  0.013 ms  32205/863190 (3.7%)  receiver
+```
+
+### Observations
+
+The BPF program doesn't introduce any significant latency or jitter in the connection. The connection is stable if the bandwith is limited at 1 Gbits/sec.
+
+### Conclusion
+
+The BPF program is able to detect the port scan introducing an overhead in the bandwith of the connection. The connection is stable if the bandwith is limited at 1 Gbits/sec. 
+This however can be still usefull in real scenarios where the server is not supposed to receive big incoming streams of data.

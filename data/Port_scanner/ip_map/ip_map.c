@@ -9,6 +9,7 @@ IPMap* init_ip_map() {
     map->size = 0;
     map->capacity = 10; // Capacità iniziale per la mappa IP
     map->entries = malloc(map->capacity * sizeof(IPEntry));
+    clear_ip_map(map);
     return map;
 }
 
@@ -74,14 +75,14 @@ int add_ip_entry(IPMap *map, const char *ip, int port) {
 
 // Funzione per pulire la mappa
 void clear_ip_map(IPMap *map) {
-    for (size_t i = 0; i < map->size; i++) {
+    for (size_t i = 0; i < map->capacity; i++) {
         map->entries[i].portList.size = 0; // Resetta la lista delle porte
     }
 }
 
 void print_ip_map(const IPMap *map) {
     if (!map || map->size == 0) {
-        //printf("La mappa IP è vuota.\n");
+        printf("La mappa IP è vuota.\n");
         return;
     }
 

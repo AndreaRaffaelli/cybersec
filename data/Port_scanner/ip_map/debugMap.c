@@ -11,6 +11,8 @@ int main() {
 
     printf("Mappa IP inizializzata con successo.\n");
 
+    print_ip_map(map);
+    
     // Aggiunta di alcune entry alla mappa
     add_ip_entry(map, "192.168.0.1", 80);
     add_ip_entry(map, "192.168.0.1", 443);

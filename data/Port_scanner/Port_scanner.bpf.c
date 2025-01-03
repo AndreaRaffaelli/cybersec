@@ -95,9 +95,9 @@ int xdp_ingress(struct xdp_md *ctx) {
 /*         char ip_str[16]; // Buffer per la stringa dell'IP
         ip_to_str(src_ip, ip_str); // Converte l'IP in stringa */
 
-        bpf_printk("IP: %d\n", src_ip); 
-        bpf_printk("PORT: %u\n", src_port);
-        bpf_printk("PROTOCOLLO: %u\n", flag_proto); 
+        // bpf_printk("IP: %d\n", src_ip); 
+        // bpf_printk("PORT: %u\n", src_port);
+        // bpf_printk("PROTOCOLLO: %u\n", flag_proto); 
 
         //entry->ip = src_ip;
         entry->port = src_port;
