@@ -22,23 +22,23 @@ int INTERFACE = 3;
 
 struct log_final{ //LOG PRODUZIONE CHE INDICA NUM OACCHETTO DROPPATI
     
-    long num_tcp;
-    long num_udp;
-    long num_total; 
-    long num_dropped;
+    __u64 num_tcp;
+    __u64 num_udp;
+    __u64 num_total; 
+    __u64 num_dropped;
 };
 
-struct log_final log;
+
 
 struct log_final log = {0,0,0,0};
 
 
 struct log_entry {
-    int ip;
-    int port;
+    __u32 ip;
+    __u16 port;
     int proto_type; //0 tcp, 1 udp
     int pass; //0 passed, 1 dropped
-    long num; //packet number in the window time
+    __u64 num; //packet number in the window time
 };
 
 
@@ -162,10 +162,10 @@ int populate_map(const char *config_file, struct bpf_map *map_config) {
 
 void printLog(){
     fprintf(stdout, "DoS detector report: \n");
-    fprintf(stdout, "TOTAL PACKETS: %ld\n", log.num_total);
-    fprintf(stdout, "TCP: %ld\n", log.num_tcp);
-    fprintf(stdout, "UDP: %ld\n", log.num_udp);
-    fprintf(stdout, "DROPPED PACKETS: %ld\n", log.num_dropped);
+    fprintf(stdout, "TOTAL PACKETS: %llu\n", log.num_total);
+    fprintf(stdout, "TCP: %llu\n", log.num_tcp);
+    fprintf(stdout, "UDP: %llu\n", log.num_udp);
+    fprintf(stdout, "DROPPED PACKETS: %llu\n", log.num_dropped);
 }
 
 int main(int argc, char **argv)
@@ -268,12 +268,12 @@ int main(int argc, char **argv)
             break;
         }
         time++; //aggiorno tempo
-		printLog();
+		printf(". ");
         sleep(1);
 	}
     
 cleanup:
-    
+    printLog();
     ring_buffer__free(rb);
     bpf_xdp_detach(INTERFACE, BPF_ANY,xdp_opts);  //forse bisogna specificarla nel file config      
 	DoS_detection_bpf__destroy(skel);

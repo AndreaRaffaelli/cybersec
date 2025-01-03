@@ -23,7 +23,7 @@ struct log_entry
     __u16 port;
     int proto_type; // 0 tcp, 1 udp
     int pass;       // 0 passed, 1 dropped
-    long num;       // packet number in the window time
+    __u64 num;       // packet number in the window time
 };
 
 // Dichiarazione del Ring Buffer
@@ -75,7 +75,7 @@ int xdp_ingress(struct xdp_md *ctx)
         char udp_key[MAX_TYPE_LEN] = "udp";
         char tcp_key[MAX_TYPE_LEN] = "tcp";
         int flag_proto = 0; // 0 == tcp, 1 ==udp
-        int flag_num = 0;
+        __u64 flag_num = 0;
         int flag_pass = 0;
         int *value_tresh_tcp;
         int *value_tresh_udp;
@@ -85,8 +85,8 @@ int xdp_ingress(struct xdp_md *ctx)
         // prendi subito le tresh
 
         char time_key[MAX_CHAR_LEN] = "time";
-        __s64 *value;
-        __s64 updated_value;
+        __u64 *value;
+        __u64 updated_value;
         __u32 *ip_time;
         __u32 *time;
         __s64 clean_value = 1;

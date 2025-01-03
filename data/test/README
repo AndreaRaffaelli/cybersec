@@ -170,3 +170,83 @@ The BPF program doesn't introduce any significant latency or jitter in the conne
 
 The BPF program is able to detect the port scan introducing an overhead in the bandwith of the connection. The connection is stable if the bandwith is limited at 1 Gbits/sec. 
 This however can be still usefull in real scenarios where the server is not supposed to receive big incoming streams of data.
+
+
+
+
+
+###DOS DETECTOR
+
+# We have 2 different servers on the VM and one of those is attacked with a DoS attck by an ip, the other one has a legitimate connection
+
+# the eBPF program is able to guaranteeing services even when a DoS is in progress?
+
+Here we can see the connection metrics of the legitimate server
+
+Accepted connection from 192.168.56.1, port 36966
+[  5] local 192.168.56.10 port 5201 connected to 192.168.56.1 port 47893
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec  11.4 MBytes  96.0 Mbits/sec  0.004 ms  0/8288 (0%)  
+[  5]   1.00-2.00   sec  11.9 MBytes   100 Mbits/sec  0.003 ms  0/8633 (0%)  
+[  5]   2.00-3.00   sec  11.9 MBytes   100 Mbits/sec  0.003 ms  0/8633 (0%)  
+[  5]   3.00-4.00   sec  11.9 MBytes   100 Mbits/sec  0.003 ms  0/8633 (0%)  
+[  5]   4.00-5.00   sec  11.9 MBytes   100 Mbits/sec  0.006 ms  0/8632 (0%)  
+[  5]   5.00-6.00   sec  3.35 MBytes  28.0 Mbits/sec  0.050 ms  1901/4324 (44%)  
+[  5]   6.00-7.00   sec  1.10 MBytes  9.21 Mbits/sec  0.130 ms  7907/8702 (91%)  
+[  5]   7.00-8.00   sec  1.32 MBytes  11.1 Mbits/sec  0.181 ms  7769/8728 (89%)  
+[  5]   8.00-9.00   sec  1.31 MBytes  11.0 Mbits/sec  0.057 ms  7660/8607 (89%)  
+[  5]   9.00-10.00  sec  1.50 MBytes  12.6 Mbits/sec  0.156 ms  7691/8779 (88%)  
+[  5]  10.00-11.00  sec  1.20 MBytes  10.0 Mbits/sec  0.117 ms  7577/8443 (90%)  
+[  5]  11.00-12.00  sec  1.64 MBytes  13.8 Mbits/sec  0.086 ms  7743/8934 (87%)  
+[  5]  12.00-13.00  sec  1.25 MBytes  10.5 Mbits/sec  0.003 ms  7450/8357 (89%)  
+[  5]  13.00-14.00  sec  1.10 MBytes  9.25 Mbits/sec  0.064 ms  8068/8865 (91%)  
+[  5]  14.00-15.00  sec  1.06 MBytes  8.87 Mbits/sec  0.142 ms  7729/8495 (91%)  
+[  5]  15.00-16.00  sec  1.01 MBytes  8.46 Mbits/sec  0.193 ms  7920/8650 (92%)  
+[  5]  16.00-17.00  sec  1.44 MBytes  12.1 Mbits/sec  0.119 ms  7747/8788 (88%)  
+[  5]  17.00-18.00  sec  1.11 MBytes  9.31 Mbits/sec  0.172 ms  7673/8477 (91%)  
+[  5]  18.00-19.00  sec  1.35 MBytes  11.4 Mbits/sec  0.167 ms  7652/8633 (89%)  
+[  5]  19.00-20.00  sec  1.90 MBytes  15.9 Mbits/sec  0.102 ms  7639/9012 (85%)  
+[  5]  20.00-21.00  sec  1.43 MBytes  12.0 Mbits/sec  0.006 ms  7260/8296 (88%)  
+[  5]  21.00-22.00  sec  1.59 MBytes  13.3 Mbits/sec  0.004 ms  7597/8745 (87%)  
+[  5]  22.00-23.00  sec  1.55 MBytes  13.0 Mbits/sec  0.002 ms  7502/8624 (87%)  
+[  5]  23.00-24.00  sec  1.57 MBytes  13.2 Mbits/sec  0.140 ms  7531/8667 (87%)  
+[  5]  24.00-25.00  sec  1.39 MBytes  11.6 Mbits/sec  0.043 ms  7476/8479 (88%)  
+[  5]  25.00-26.00  sec  1.25 MBytes  10.5 Mbits/sec  0.132 ms  7800/8706 (90%)  
+[  5]  26.00-27.00  sec  1.26 MBytes  10.5 Mbits/sec  0.200 ms  7860/8769 (90%)  
+[  5]  27.00-28.00  sec  1.59 MBytes  13.3 Mbits/sec  0.013 ms  7454/8603 (87%)  
+[  5]  28.00-29.00  sec  1.63 MBytes  13.6 Mbits/sec  0.004 ms  7697/8874 (87%)  
+[  5]  29.00-30.00  sec  1.01 MBytes  8.49 Mbits/sec  0.185 ms  7677/8408 (91%)  
+[  5]  30.00-31.00  sec  1.51 MBytes  12.7 Mbits/sec  0.071 ms  7650/8745 (87%)  
+[  5]  31.00-32.00  sec  1.72 MBytes  14.4 Mbits/sec  0.005 ms  7456/8701 (86%)  
+[  5]  32.00-33.00  sec  1.83 MBytes  15.4 Mbits/sec  0.063 ms  7487/8814 (85%)  
+[  5]  33.00-34.00  sec  1.49 MBytes  12.5 Mbits/sec  0.003 ms  7418/8495 (87%)  
+[  5]  34.00-35.00  sec  1.47 MBytes  12.4 Mbits/sec  0.248 ms  7544/8611 (88%)  
+[  5]  35.00-36.00  sec  1.68 MBytes  14.1 Mbits/sec  0.005 ms  7399/8619 (86%)  
+[  5]  36.00-37.00  sec  1.93 MBytes  16.2 Mbits/sec  0.010 ms  7398/8797 (84%)  
+[  5]  37.00-38.00  sec  1.44 MBytes  12.1 Mbits/sec  0.134 ms  7512/8555 (88%)  
+[  5]  38.00-39.00  sec  1.71 MBytes  14.3 Mbits/sec  0.043 ms  7320/8555 (86%)  
+[  5]  39.00-40.00  sec  1.64 MBytes  13.8 Mbits/sec  0.004 ms  7398/8589 (86%)  
+[  5]  40.00-41.00  sec  1.65 MBytes  13.8 Mbits/sec  0.003 ms  7441/8633 (86%)  
+[  5]  41.00-42.00  sec  1.92 MBytes  16.1 Mbits/sec  0.006 ms  7458/8848 (84%)  
+[  5]  42.00-43.00  sec  6.70 MBytes  56.3 Mbits/sec  0.004 ms  7260/12112 (60%)  
+[  5]  43.00-44.00  sec  11.9 MBytes   100 Mbits/sec  0.003 ms  0/8633 (0%)  
+[  5]  44.00-45.00  sec  11.9 MBytes   100 Mbits/sec  0.004 ms  0/8632 (0%)  
+[  5]  45.00-46.00  sec  11.9 MBytes   100 Mbits/sec  0.005 ms  0/8632 (0%)  
+[  5]  46.00-47.00  sec  11.9 MBytes   100 Mbits/sec  0.004 ms  0/8633 (0%)  
+[  5]  47.00-48.00  sec  11.9 MBytes   100 Mbits/sec  0.002 ms  0/8633 (0%)  
+[  5]  48.00-49.00  sec  11.9 MBytes   100 Mbits/sec  0.004 ms  0/8632 (0%)  
+[  5]  49.00-50.00  sec  11.9 MBytes   100 Mbits/sec  0.004 ms  0/8633 (0%)  
+[  5]  50.00-51.00  sec  11.9 MBytes   100 Mbits/sec  0.005 ms  0/8633 (0%)  
+[  5]  51.00-52.00  sec  11.9 MBytes   100 Mbits/sec  0.008 ms  0/8632 (0%)  
+[  5]  51.00-52.00  sec  11.9 MBytes   100 Mbits/sec  0.008 ms  0/8632 (0%)  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-52.00  sec   232 MBytes  37.4 Mbits/sec  0.005 ms  282721/450787 (63%)  receiver
+iperf3: the client has terminated
+
+
+##vediamo che la bandwidth viene molto influenzata dall'attacco DoS e in pacchetti non arrivano neanche alla shceda di rete,
+ma se arrivano vengono gestiti anche con un attacco DoS in corso come possiamo vedere
+
+quando il DOs finisce (secondo 43) il recovery è immadiato
+con una bandwidth piu larga possiamo avere delle ottime performances
